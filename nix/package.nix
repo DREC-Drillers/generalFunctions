@@ -3,6 +3,7 @@
   stdenv,
   cmake,
   ninja,
+  gtest,
   clang-tools,
   buildLexer ? true,
   buildGeometry ? true,
@@ -27,19 +28,21 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = [ cmake ninja ] ++ lib.optional buildGeometry clang-tools;
 
+  buildInputs = [ gtest ];
+
   cmakeFlags = [
     (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_LEXER" buildLexer)
     (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_GEOMETRY" buildGeometry)
     (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_FILES" buildFiles)
-    (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_TESTS" true)
+    (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_TESTS" (buildLexer || buildGeometry))
   ] ++ lib.optional (buildGeometry && stdenv.cc.isClang)
     # CMake otherwise finds the unwrapped scanner, which misses Nix header paths.
     "-DCMAKE_CXX_COMPILER_CLANG_SCAN_DEPS=${clang-tools}/bin/clang-scan-deps";
 
-  doCheck = true;
+  doCheck = buildLexer || buildGeometry;
   checkPhase = ''
     runHook preCheck
-    ctest --output-on-failure
+    ctest --output-on-failure --no-tests=error
     runHook postCheck
   '';
 
