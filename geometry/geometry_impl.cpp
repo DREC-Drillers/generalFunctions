@@ -65,7 +65,8 @@ segment_t::projectionFallsOnSegment(const point_t& p) const {
     vector_t lineDir = direction();
     double length = lineDir.length();
 
-    double projection = vector_t{a_, p}.dot(lineDir) / length;
+    vector_t unitDir = lineDir.normalized();
+    double projection = vector_t{a_, p}.dot(unitDir);
 
     return (projection >= 0.0 || isDoubleZero(projection)) &&
            (projection <= length || isDoubleZero(projection - length));
