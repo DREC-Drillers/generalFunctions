@@ -22,9 +22,17 @@ point_t::point_t(double x, double y, double z)
 
 bool
 point_t::operator==(const point_t &refPoint) const {
-    return isDoubleZero(refPoint.x_ - x_) &&
-           isDoubleZero(refPoint.y_ - y_) &&
-           isDoubleZero(refPoint.z_ - z_);
+    return x_ == refPoint.x_ && y_ == refPoint.y_ && z_ == refPoint.z_;
+}
+
+bool
+point_t::isApprox(const point_t &otherPoint, double tolerance) const {
+    if (!std::isfinite(tolerance) || tolerance < 0.0) {
+        throw std::invalid_argument("Comparison tolerance must be finite and non-negative");
+    }
+    return std::fabs(x_ - otherPoint.x_) <= tolerance &&
+           std::fabs(y_ - otherPoint.y_) <= tolerance &&
+           std::fabs(z_ - otherPoint.z_) <= tolerance;
 }
 
 double
@@ -40,7 +48,7 @@ point_t::distance(const point_t &otherPoint) const {
 segment_t::segment_t(const point_t &a, const point_t &b)
     : a_(a),
       b_(b) {
-    if (a == b) {
+    if (a.isApprox(b)) {
         throw std::invalid_argument
             ("The line segment must be constructed using two distinct points.");
     }
@@ -103,10 +111,18 @@ vector_t::vector_t(const point_t &origin, const point_t &end) {
 
 bool
 vector_t::operator==(const vector_t &otherVector) const {
-    return isDoubleZero(otherVector.x_ - x_) &&
-           isDoubleZero(otherVector.y_ - y_) &&
-           isDoubleZero(otherVector.z_ - z_);
-};
+    return x_ == otherVector.x_ && y_ == otherVector.y_ && z_ == otherVector.z_;
+}
+
+bool
+vector_t::isApprox(const vector_t &otherVector, double tolerance) const {
+    if (!std::isfinite(tolerance) || tolerance < 0.0) {
+        throw std::invalid_argument("Comparison tolerance must be finite and non-negative");
+    }
+    return std::fabs(x_ - otherVector.x_) <= tolerance &&
+           std::fabs(y_ - otherVector.y_) <= tolerance &&
+           std::fabs(z_ - otherVector.z_) <= tolerance;
+}
 
 double
 vector_t::length() const {
@@ -205,7 +221,7 @@ polygon_t::validateCollinearity() const {
     std::size_t pointsNum = numOfPoints();
 
     for (std::size_t i = 0; i < pointsNum; ++i) {
-        if (point(i) == point((i + 1) % pointsNum)) {
+        if (point(i).isApprox(point((i + 1) % pointsNum))) {
             throw std::invalid_argument("Adjacent polygon vertices must be distinct");
         }
 

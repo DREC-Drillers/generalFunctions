@@ -25,6 +25,8 @@ public:
     double z() const { return z_; };
 
     bool operator==(const point_t &refPoint) const;
+    bool isApprox(const point_t &otherPoint, double tolerance = EPSILON) const;
+
     double distance(const point_t &otherPoint) const;
 };
 
@@ -46,6 +48,7 @@ public:
     vector_t normalized() const;
 
     bool operator==(const vector_t &otherVector) const;
+    bool isApprox(const vector_t &otherVector, double tolerance = EPSILON) const;
 
     vector_t& operator+=(const vector_t &otherVector);
     vector_t& operator-=(const vector_t &otherVector);
@@ -90,6 +93,8 @@ private:
 
 public:
     polygon_t(std::vector<point_t> points);
+    polygon_t& operator=(const polygon_t&) = delete;
+    polygon_t& operator=(polygon_t&&) = delete;
 
     std::size_t numOfPoints() const { return points_.size(); };
     const std::vector<point_t>& points() const { return points_; };
