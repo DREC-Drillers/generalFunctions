@@ -110,10 +110,11 @@ vector_t::normalized() const {
     if (!std::isfinite(len)) {
         throw std::invalid_argument("Vector length must be finite for normalization");
     }
-    if (isDoubleZero(len)) {
+    if (len == 0.0) {
         throw std::invalid_argument("Cannot normalize a zero vector");
     }
-    vector_t norm = (*this) * (1 / len);
+
+    vector_t norm{x_ / len, y_ / len, z_ / len};
     return norm;
 }
 
@@ -173,16 +174,7 @@ vector_t::operator*(double number) const {
 triangle_t::triangle_t(const point_t& firstPoint,
                        const point_t& secondPoint,
                        const point_t& thirdPoint)
-    : polygon_t({firstPoint, secondPoint, thirdPoint}) {
-
-    vector_t vecAB{point(0), point(1)};
-    vector_t vecAC{point(0), point(2)};
-
-    vector_t normal = vecAB.cross(vecAC);
-    if (normal.isZero()) {
-        throw std::invalid_argument("Triangle points must not lie on the same line");
-    }
-}
+    : polygon_t({firstPoint, secondPoint, thirdPoint}) {}
 
 double
 triangle_t::lenAB() const {
@@ -211,8 +203,8 @@ polygon_t::validateCollinearity() const {
         vector_t firstVec{point(i), point((i + 1) % pointsNum)};
         vector_t secondVec{point((i + 1) % pointsNum), point((i + 2) % pointsNum)};
 
-        vector_t norm = firstVec.cross(secondVec);
-        if (norm.isZero()) {
+        double distanceToLine = (firstVec.normalized().cross(secondVec)).length();
+        if (isDoubleZero(distanceToLine)) {
             throw std::invalid_argument("Collinear vertices: " +
                                         std::to_string(i) + ", " +
                                         std::to_string((i + 1) % pointsNum) + ", " +
