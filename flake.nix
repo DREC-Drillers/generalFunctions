@@ -62,6 +62,7 @@
         stdenv = llvm.stdenv;
       }) {
         packages = [ pkgs.cmake pkgs.ninja pkgs.git llvm.clang-tools ];
+        buildInputs = [ pkgs.gtest ];
         GENERAL_FUNCTIONS_CLANG_SCAN_DEPS = clangScanDeps;
       };
     };
