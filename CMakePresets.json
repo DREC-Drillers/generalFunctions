@@ -1,0 +1,31 @@
+{
+  "version": 5,
+  "configurePresets": [
+    {
+      "name": "nix",
+      "displayName": "LLVM 18 from nix develop",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/nix",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS": "$env{GENERAL_FUNCTIONS_CLANG_SCAN_DEPS}",
+        "GENERAL_FUNCTIONS_BUILD_TESTS": true
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "nix",
+      "configurePreset": "nix"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "nix",
+      "configurePreset": "nix",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
