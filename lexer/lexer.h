@@ -35,7 +35,7 @@ private:
 
     Token makeErrorToken(std::string message) const;
     Token makeIdentToken(std::string ident) const;
-    Token makeIntToken(int value) const;
+    Token makeIntToken(std::int64_t value) const;
     Token makeDoubleToken(double value) const;
     Token makeEndToken() const;
 };

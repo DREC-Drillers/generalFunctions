@@ -21,7 +21,7 @@ public:
     bool isMatchType(TokenType type) const;
 
     const Token& expectToken(TokenType type, const std::string& msg);
-    int expectInt(const std::string& msg);
+    std::int64_t expectInt(const std::string& msg);
     const std::string& expectIdent(const std::string& msg);
     double expectDouble(const std::string& msg);
 

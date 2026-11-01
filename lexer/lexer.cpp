@@ -9,7 +9,7 @@
 namespace lexer {
 namespace {
 
-bool isDigit(char c) { return c >= '0' && c <= '9'; }
+bool isDigit(char c) { return std::isdigit(static_cast<unsigned char>(c)); }
 
 bool isIdent(std::string_view text) {
     if (text.empty()) return false;
@@ -21,6 +21,7 @@ bool isIdent(std::string_view text) {
 
 bool isInteger(std::string_view text, bool allowSign) {
     std::size_t pos = 0;
+
     if (allowSign && !text.empty() && (text.front() == '+' || text.front() == '-')) ++pos;
     if (pos == text.size()) return false;
     for (; pos < text.size(); ++pos) {
@@ -29,7 +30,7 @@ bool isInteger(std::string_view text, bool allowSign) {
     return true;
 }
 
-bool isReal(std::string_view text) {
+bool isDouble(std::string_view text) {
     std::size_t pos = 0;
     if (pos < text.size() && (text[pos] == '+' || text[pos] == '-')) ++pos;
 
@@ -47,13 +48,6 @@ bool isReal(std::string_view text) {
     }
     if (!hasDigits) return false;
 
-    if (pos < text.size() && (text[pos] == 'e' || text[pos] == 'E')) {
-        ++pos;
-        if (pos < text.size() && (text[pos] == '+' || text[pos] == '-')) ++pos;
-        const std::size_t start = pos;
-        while (pos < text.size() && isDigit(text[pos])) ++pos;
-        if (pos == start) return false;
-    }
     return pos == text.size();
 }
 
@@ -91,14 +85,14 @@ Token Lexer::readInt(std::string_view text) {
 
     if (digits.front() == '+') digits.remove_prefix(1);
 
-    int value = 0;
+    std::int64_t value = 0;
     const char* const end = digits.data() + digits.size();
     const auto result = std::from_chars(digits.data(), end, value);
 
     if (result.ec == std::errc{} && result.ptr == end) return makeIntToken(value);
 
     if (result.ec == std::errc::result_out_of_range) {
-        return makeErrorToken("INT is overflow");
+        return readDouble(text);
     }
 
     return makeErrorToken("It is not INT");
@@ -131,7 +125,7 @@ Token Lexer::readToken() {
     Token token = {};
     if (isInteger(text, true)) {
         token = readInt(text);
-    } else if (isReal(text)) {
+    } else if (isDouble(text)) {
         token = readDouble(text);
     } else if (isIdent(text)) {
         token = makeIdentToken(std::string(text));
@@ -146,7 +140,7 @@ Token Lexer::readToken() {
 Token Lexer::makeErrorToken(std::string message) const {
     return {TokenType::ERROR, std::move(message), curLine_, curCol_};
 }
-Token Lexer::makeIntToken(int value) const {
+Token Lexer::makeIntToken(std::int64_t value) const {
     return {TokenType::INT, value, curLine_, curCol_};
 }
 Token Lexer::makeDoubleToken(double value) const {
@@ -155,7 +149,7 @@ Token Lexer::makeDoubleToken(double value) const {
 Token Lexer::makeIdentToken(std::string ident) const {
     return {TokenType::IDENTIFIER, std::move(ident), curLine_, curCol_};
 }
-Token Lexer::makeEndToken() const { return {TokenType::END, 0, curLine_, curCol_}; }
+Token Lexer::makeEndToken() const { return {TokenType::END, std::int64_t{0}, curLine_, curCol_}; }
 
 TokenStream Lexer::tokenize() {
     std::vector<Token> tokens;

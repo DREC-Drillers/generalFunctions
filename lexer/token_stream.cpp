@@ -35,7 +35,7 @@ void TokenStream::verify() const {
 
         const bool validData =
             ((token.type == TokenType::INT || token.type == TokenType::END) &&
-             std::holds_alternative<int>(token.data)) ||
+             std::holds_alternative<std::int64_t>(token.data)) ||
             (token.type == TokenType::IDENTIFIER && std::holds_alternative<std::string>(token.data)) ||
             (token.type == TokenType::DOUBLE && std::holds_alternative<double>(token.data));
 
@@ -65,13 +65,13 @@ const Token& TokenStream::expectToken(TokenType type, const std::string& msg) {
     const Token& token = peekToken();
 
     if (token.type != type) failAtToken(token, msg);
-    
+
     movePos();
     return token;
 }
 
-int TokenStream::expectInt(const std::string& msg) {
-    return std::get<int>(expectToken(TokenType::INT, msg).data);
+std::int64_t TokenStream::expectInt(const std::string& msg) {
+    return std::get<std::int64_t>(expectToken(TokenType::INT, msg).data);
 }
 
 const std::string& TokenStream::expectIdent(const std::string& msg) {
@@ -82,7 +82,7 @@ double TokenStream::expectDouble(const std::string& msg) {
     const Token& token = peekToken();
 
     if (token.type == TokenType::INT) {
-        const double value = static_cast<double>(std::get<int>(token.data));
+        const double value = static_cast<double>(std::get<std::int64_t>(token.data));
 
         movePos();
         return value;
