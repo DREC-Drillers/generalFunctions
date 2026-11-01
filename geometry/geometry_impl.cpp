@@ -10,6 +10,13 @@ module geometry;
 
 namespace geometry {
 
+namespace {
+
+bool
+isDoubleZero(double num) { return std::fabs(num) < EPSILON; }
+
+} // namespace
+
 point_t::point_t(double x, double y, double z)
     : x_(x),
       y_(y),
@@ -128,6 +135,11 @@ vector_t::isApprox(const vector_t &otherVector, double tolerance) const {
 double
 vector_t::length() const {
     return std::hypot(x_, y_, z_);
+}
+
+bool
+vector_t::isZero() const {
+    return isDoubleZero(length());
 }
 
 vector_t

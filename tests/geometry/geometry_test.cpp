@@ -19,11 +19,11 @@ void expectVector(const vector_t &value, double x, double y, double z) {
   EXPECT_NEAR(value.z(), z, 1e-12);
 }
 
-TEST(GeometryTolerance, UsesStrictAbsoluteThreshold) {
+TEST(Vector, ZeroUsesStrictAbsoluteThreshold) {
   for (double value : {0.0, -0.0, EPSILON / 2, -EPSILON / 2})
-    EXPECT_TRUE(isDoubleZero(value));
+    EXPECT_TRUE(vector_t(value, 0, 0).isZero());
   for (double value : {EPSILON, -EPSILON, 1.0, inf, -inf, nan})
-    EXPECT_FALSE(isDoubleZero(value));
+    EXPECT_FALSE(vector_t(value, 0, 0).isZero());
 }
 
 TEST(Point, CoordinatesAndExactEquality) {
@@ -96,9 +96,6 @@ TEST(Vector, LengthZeroAndNormalization) {
   expectVector(unit, 3.0 / 13, -4.0 / 13, 12.0 / 13);
   EXPECT_NEAR(unit.length(), 1, 1e-12);
   expectVector(v, 3, -4, 12);
-  EXPECT_TRUE(vector_t(0, 0, 0).isZero());
-  EXPECT_TRUE(vector_t(EPSILON / 2, 0, 0).isZero());
-  EXPECT_FALSE(vector_t(EPSILON, 0, 0).isZero());
   EXPECT_THROW(vector_t(0, 0, 0).normalized(), std::invalid_argument);
   expectVector(vector_t(1e-150, 0, 0).normalized(), 1, 0, 0);
   EXPECT_NEAR(vector_t(3e150, 4e150, 0).length() / 1e150, 5, 1e-12);

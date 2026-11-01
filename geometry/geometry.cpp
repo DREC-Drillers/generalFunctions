@@ -9,8 +9,6 @@ export namespace geometry {
 
 constexpr double EPSILON = 1e-9;
 
-bool isDoubleZero(double num) { return std::fabs(num) < EPSILON; }
-
 class point_t {
 private:
     double x_ = NAN;
@@ -44,7 +42,7 @@ public:
     double z() const { return z_; };
 
     double length() const;
-    bool isZero() const { return geometry::isDoubleZero(length()); }
+    bool isZero() const;
     vector_t normalized() const;
 
     bool operator==(const vector_t &otherVector) const;
