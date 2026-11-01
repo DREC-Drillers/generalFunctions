@@ -4,6 +4,7 @@ module;
 #include <stdexcept>
 #include <vector>
 #include <string>
+#include <utility>
 
 module geometry;
 
@@ -280,7 +281,7 @@ polygon_t::validateSelfIntersections() const {
 }
 
 polygon_t::polygon_t(std::vector<point_t> points)
-    : points_(points) {
+    : points_(std::move(points)) {
     if (points_.size() < 3) {
         throw std::invalid_argument("The polygon must have at least three vertices.");
     }
@@ -313,4 +314,4 @@ polygon_t::unitNormal() const {
     return normal.normalized();
 }
 
-}
+} // namespace geometry
