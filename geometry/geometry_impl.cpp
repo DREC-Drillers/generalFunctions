@@ -73,17 +73,26 @@ segment_t::projectionFallsOnSegment(const point_t& p) const {
 }
 
 bool
-segment_t::intersects(const segment_t& other, const vector_t& planeNormal) const {
-    double signedDistA = other.signedDistanceToLine(a_, planeNormal);
-    double signedDistB = other.signedDistanceToLine(b_, planeNormal);
-    double signedDistC = signedDistanceToLine(other.a_, planeNormal);
-    double signedDistD = signedDistanceToLine(other.b_, planeNormal);
+segment_t::isIntersectsCoplanar(const segment_t& other, const vector_t& planeNormal) const {
+    const vector_t unitNormal = planeNormal.normalized();
+
+    if (!isDoubleZero(vector_t{a_, b_}.dot(unitNormal)) ||
+        !isDoubleZero(vector_t{a_, other.a_}.dot(unitNormal)) ||
+        !isDoubleZero(vector_t{a_, other.b_}.dot(unitNormal))) {
+        throw std::invalid_argument(
+            "Segment endpoints must lie in a common plane with the supplied normal");
+    }
+
+    double signedDistA = other.signedDistanceToLine(a_, unitNormal);
+    double signedDistB = other.signedDistanceToLine(b_, unitNormal);
+    double signedDistC = signedDistanceToLine(other.a_, unitNormal);
+    double signedDistD = signedDistanceToLine(other.b_, unitNormal);
 
     return (signedDistC * signedDistD < 0 && signedDistA * signedDistB < 0) ||
            (isDoubleZero(signedDistC) && projectionFallsOnSegment(other.a_)) ||
            (isDoubleZero(signedDistD) && projectionFallsOnSegment(other.b_)) ||
-           (isDoubleZero(signedDistA) == 0 && other.projectionFallsOnSegment(a_)) ||
-           (isDoubleZero(signedDistB) == 0 && other.projectionFallsOnSegment(b_));
+           (isDoubleZero(signedDistA) && other.projectionFallsOnSegment(a_)) ||
+           (isDoubleZero(signedDistB) && other.projectionFallsOnSegment(b_));
 }
 
 vector_t::vector_t(const point_t &origin, const point_t &end) {
@@ -245,7 +254,7 @@ polygon_t::validateSelfIntersections() const {
             }
 
             segment_t secondEdge{point(j), point(nextJ)};
-            if (firstEdge.intersects(secondEdge, normal)) {
+            if (firstEdge.isIntersectsCoplanar(secondEdge, normal)) {
                 throw std::invalid_argument(
                     "Polygon edges intersect: " + std::to_string(i) + ", " +
                     std::to_string(j));

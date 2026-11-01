@@ -77,7 +77,7 @@ public:
     double length() const { return a_.distance(b_); };
     vector_t direction() const;
 
-    bool intersects(const segment_t& other, const vector_t& planeNormal) const;
+    bool isIntersectsCoplanar(const segment_t& other, const vector_t& planeNormal) const;
 };
 
 class polygon_t {
