@@ -45,6 +45,15 @@ point_t::distance(const point_t &otherPoint) const {
     return std::hypot(dx, dy, dz);
 };
 
+static double
+point_t::orient3D(const point_t &a, const point_t &b,
+                 const point_t &c, const point_t &d) {
+    vector_t vecBA{b, a};
+    vector_t vecCA{c, a};
+    vector_t vecDA{d, a};
+
+    return (vecBA.cross(vecCA)).dot(vecDA);
+}
 
 segment_t::segment_t(const point_t &a, const point_t &b)
     : a_(a),

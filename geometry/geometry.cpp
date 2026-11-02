@@ -28,6 +28,10 @@ public:
     bool isApprox(const point_t &otherPoint, double tolerance = EPSILON) const;
 
     double distance(const point_t &otherPoint) const;
+
+    static double orient3D(const point_t& a, const point_t& b,
+                           const point_t& c, const point_t& d);
+
 };
 
 class vector_t {
