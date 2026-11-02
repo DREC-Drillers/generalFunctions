@@ -5,11 +5,15 @@ module;
 
 export module geometry;
 
-export namespace geometry {
+namespace geometry {
 
 constexpr double EPSILON = 1e-9;
 
 bool isDoubleZero(double num) { return std::fabs(num) < EPSILON; }
+
+}
+
+export namespace geometry {
 
 class point_t {
 private:
