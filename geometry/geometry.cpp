@@ -93,8 +93,11 @@ private:
 
 public:
     polygon_t(std::vector<point_t> points);
-    polygon_t& operator=(const polygon_t&) = delete;
-    polygon_t& operator=(polygon_t&&) = delete;
+    polygon_t(const polygon_t&) = default;
+    // Moving transfers the vertices. Do not call geometry operations on the source.
+    polygon_t(polygon_t&&) noexcept = default;
+    polygon_t& operator=(const polygon_t&) = default;
+    polygon_t& operator=(polygon_t&&) noexcept = default;
 
     std::size_t numOfPoints() const { return points_.size(); };
     const std::vector<point_t>& points() const { return points_; };
