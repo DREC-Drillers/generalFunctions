@@ -172,121 +172,152 @@ vector_t::operator*(double number) const {
 }
 
 
-triangle_t::triangle_t(const point_t<3>& firstPoint,
-                       const point_t<3>& secondPoint,
-                       const point_t<3>& thirdPoint)
-    : polygon_t({firstPoint, secondPoint, thirdPoint}) {}
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+triangle_t<Dim>::triangle_t(const point_t<Dim>& firstPoint,
+                            const point_t<Dim>& secondPoint,
+                            const point_t<Dim>& thirdPoint)
+    : polygon_t<Dim>({firstPoint, secondPoint, thirdPoint}) {}
 
-double
-triangle_t::lenAB() const {
-    return point(0).distance(point(1));
-}
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+double triangle_t<Dim>::lenAB() const { return a().distance(b()); }
 
-double
-triangle_t::lenBC() const {
-    return point(1).distance(point(2));
-}
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+double triangle_t<Dim>::lenBC() const { return b().distance(c()); }
 
-double
-triangle_t::lenCA() const {
-    return point(2).distance(point(0));
-}
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+double triangle_t<Dim>::lenCA() const { return c().distance(a()); }
 
-void
-polygon_t::validateCollinearity() const {
-    std::size_t pointsNum = numOfPoints();
-
-    for (std::size_t i = 0; i < pointsNum; ++i) {
-        if (point(i).isApprox(point((i + 1) % pointsNum))) {
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+void polygon_t<Dim>::validateCollinearity() const {
+    const std::size_t count = numOfPoints();
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& first = point(i);
+        const auto& second = point((i + 1) % count);
+        const auto& third = point((i + 2) % count);
+        if (first.isApprox(second)) {
             throw std::invalid_argument("Adjacent polygon vertices must be distinct");
         }
-
-        vector_t firstVec{point(i), point((i + 1) % pointsNum)};
-        vector_t secondVec{point((i + 1) % pointsNum), point((i + 2) % pointsNum)};
-
-        double distanceToLine = (firstVec.normalized().cross(secondVec)).length();
+        double distanceToLine;
+        if constexpr (Dim == 2) {
+            distanceToLine = std::fabs(point_t<2>::orient2D(first, second, third)) /
+                             first.distance(second);
+        } else {
+            distanceToLine = vector_t(first, second).normalized().cross(
+                vector_t(second, third)).length();
+        }
         if (isDoubleZero(distanceToLine)) {
-            throw std::invalid_argument("Collinear vertices: " +
-                                        std::to_string(i) + ", " +
-                                        std::to_string((i + 1) % pointsNum) + ", " +
-                                        std::to_string((i + 2) % pointsNum));
+            throw std::invalid_argument("Consecutive polygon vertices must not be collinear");
         }
     }
 }
 
-void
-polygon_t::validateCoplanarity() const {
-    vector_t firstVec{point(0), point(1)};
-    vector_t secondVec{point(1), point(2)};
-    vector_t planeNorm = firstVec.cross(secondVec).normalized();
-
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+void polygon_t<Dim>::validateCoplanarity() const requires (Dim == 3) {
+    const auto normal = unitNormal();
     for (std::size_t i = 3; i < numOfPoints(); ++i) {
-        vector_t planeVector{point(0), point(i)};
-        if (!isDoubleZero(planeVector.dot(planeNorm))) {
-            throw std::invalid_argument(
-                "Polygon vertices must lie in the same plane. Invalid vertex: " +
-                std::to_string(i));
+        if (!isDoubleZero(vector_t(point(0), point(i)).dot(normal))) {
+            throw std::invalid_argument("Polygon vertices must lie in the same plane");
         }
     }
 }
 
-void
-polygon_t::validateSelfIntersections() const {
-    const vector_t normal = unitNormal();
-    const std::size_t pointsNum = numOfPoints();
+namespace {
 
-    for (std::size_t i = 0; i < pointsNum; ++i) {
-        std::size_t nextI = (i + 1) % pointsNum;
+bool doSegmentsIntersect2D(const point_t<2>& a, const point_t<2>& b,
+                          const point_t<2>& c, const point_t<2>& d) {
+    auto containsProjection = [](const point_t<2>& first, const point_t<2>& second,
+                                 const point_t<2>& point) {
+        const double length = first.distance(second);
+        const double projection = ((point.x() - first.x()) * (second.x() - first.x()) +
+                                   (point.y() - first.y()) * (second.y() - first.y())) / length;
+        return (projection >= 0 || isDoubleZero(projection)) &&
+               (projection <= length || isDoubleZero(projection - length));
+    };
+    const double abC = point_t<2>::orient2D(a, b, c) / a.distance(b);
+    const double abD = point_t<2>::orient2D(a, b, d) / a.distance(b);
+    const double cdA = point_t<2>::orient2D(c, d, a) / c.distance(d);
+    const double cdB = point_t<2>::orient2D(c, d, b) / c.distance(d);
+    return (abC * abD < 0 && cdA * cdB < 0) ||
+           (isDoubleZero(abC) && containsProjection(a, b, c)) ||
+           (isDoubleZero(abD) && containsProjection(a, b, d)) ||
+           (isDoubleZero(cdA) && containsProjection(c, d, a)) ||
+           (isDoubleZero(cdB) && containsProjection(c, d, b));
+}
 
-        segment_t firstEdge{point(i), point(nextI)};
-        for (std::size_t j = i + 1; j < pointsNum; ++j) {
-            std::size_t nextJ = (j + 1) % pointsNum;
+} // namespace
+
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+void polygon_t<Dim>::validateSelfIntersections() const {
+    const std::size_t count = numOfPoints();
+    for (std::size_t i = 0; i < count; ++i) {
+        const std::size_t nextI = (i + 1) % count;
+        for (std::size_t j = i + 1; j < count; ++j) {
+            const std::size_t nextJ = (j + 1) % count;
             if (nextI == j || nextJ == i) {
                 continue;
             }
-
-            segment_t secondEdge{point(j), point(nextJ)};
-            if (firstEdge.isIntersectsCoplanar(secondEdge, normal)) {
-                throw std::invalid_argument(
-                    "Polygon edges intersect: " + std::to_string(i) + ", " +
-                    std::to_string(j));
+            bool intersects;
+            if constexpr (Dim == 2) {
+                intersects = doSegmentsIntersect2D(point(i), point(nextI), point(j), point(nextJ));
+            } else {
+                const segment_t first(point(i), point(nextI));
+                const segment_t second(point(j), point(nextJ));
+                intersects = first.isIntersectsCoplanar(second, unitNormal());
+            }
+            if (intersects) {
+                throw std::invalid_argument("Polygon edges must not intersect");
             }
         }
     }
 }
 
-polygon_t::polygon_t(std::vector<point_t<3>> points)
-    : points_(std::move(points)) {
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+polygon_t<Dim>::polygon_t(std::vector<point_t<Dim>> points) : points_(std::move(points)) {
     if (points_.size() < 3) {
-        throw std::invalid_argument("The polygon must have at least three vertices.");
+        throw std::invalid_argument("The polygon must have at least three vertices");
     }
-
     validateCollinearity();
-    validateCoplanarity();
+    if constexpr (Dim == 3) {
+        validateCoplanarity();
+    }
     validateSelfIntersections();
 }
 
-double
-polygon_t::area() const {
-    vector_t crossSum {0.0, 0.0, 0.0};
-
-    for (std::size_t i = 0; i < numOfPoints() - 2; ++i) {
-        vector_t firstTriangleSide{point(0), point(i + 1)};
-        vector_t secondTriangleSide{point(0), point(i + 2)};
-
-        crossSum += firstTriangleSide.cross(secondTriangleSide);
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+double polygon_t<Dim>::area() const {
+    if constexpr (Dim == 2) {
+        double twiceArea = 0;
+        for (std::size_t i = 1; i + 1 < numOfPoints(); ++i) {
+            twiceArea += point_t<2>::orient2D(point(0), point(i), point(i + 1));
+        }
+        return std::fabs(twiceArea) / 2;
+    } else {
+        vector_t crossSum(0, 0, 0);
+        for (std::size_t i = 1; i + 1 < numOfPoints(); ++i) {
+            crossSum += vector_t(point(0), point(i)).cross(vector_t(point(0), point(i + 1)));
+        }
+        return crossSum.length() / 2;
     }
-
-    return crossSum.length() / 2;
 }
 
-vector_t
-polygon_t::unitNormal() const {
-    vector_t firstVec{point(0), point(1)};
-    vector_t secondVec{point(0), point(2)};
-
-    vector_t normal = firstVec.cross(secondVec);
-    return normal.normalized();
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+vector_t polygon_t<Dim>::unitNormal() const requires (Dim == 3) {
+    return vector_t(point(0), point(1)).cross(vector_t(point(0), point(2))).normalized();
 }
+
+template class polygon_t<2>;
+template class polygon_t<3>;
+template class triangle_t<2>;
+template class triangle_t<3>;
 
 } // namespace geometry

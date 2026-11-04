@@ -149,44 +149,47 @@ public:
     bool isIntersectsCoplanar(const segment_t& other, const vector_t& planeNormal) const;
 };
 
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
 class polygon_t {
 private:
-    std::vector<point_t<3>> points_;
+    std::vector<point_t<Dim>> points_;
 
     void validateCollinearity() const;
-    void validateCoplanarity() const;
+    void validateCoplanarity() const requires (Dim == 3);
     void validateSelfIntersections() const;
 
 public:
-    polygon_t(std::vector<point_t<3>> points);
+    polygon_t(std::vector<point_t<Dim>> points);
 
     polygon_t(const polygon_t&) = default;
     polygon_t(polygon_t&&) = default;
-
     polygon_t& operator=(const polygon_t&) = delete;
     polygon_t& operator=(polygon_t&&) = delete;
 
-    std::size_t numOfPoints() const { return points_.size(); };
-    const std::vector<point_t<3>>& points() const { return points_; };
-    const point_t<3>& point(std::size_t i) const { return points()[i]; };
+    std::size_t numOfPoints() const { return points_.size(); }
+    const std::vector<point_t<Dim>>& points() const { return points_; }
+    const point_t<Dim>& point(std::size_t index) const { return points_[index]; }
 
     double area() const;
-    vector_t unitNormal() const;
+    vector_t unitNormal() const requires (Dim == 3);
 };
 
-class triangle_t : public polygon_t {
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+class triangle_t : public polygon_t<Dim> {
 public:
-    triangle_t(const point_t<3> &firstPoint,
-               const point_t<3> &secondPoint,
-               const point_t<3> &thirdPoint);
+    triangle_t(const point_t<Dim>& firstPoint,
+               const point_t<Dim>& secondPoint,
+               const point_t<Dim>& thirdPoint);
 
-    const point_t<3>& a() const { return point(0); };
-    const point_t<3>& b() const { return point(1); };
-    const point_t<3>& c() const { return point(2); };
+    const point_t<Dim>& a() const { return this->point(0); }
+    const point_t<Dim>& b() const { return this->point(1); }
+    const point_t<Dim>& c() const { return this->point(2); }
 
     double lenAB() const;
     double lenBC() const;
     double lenCA() const;
 };
 
-}
+} // namespace geometry
