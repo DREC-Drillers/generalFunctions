@@ -10,52 +10,7 @@ module geometry;
 
 namespace geometry {
 
-point_t::point_t(double x, double y, double z)
-    : x_(x),
-      y_(y),
-      z_(z) {
-    if (!(std::isfinite(x) &&
-          std::isfinite(y) &&
-          std::isfinite(z))) {
-        throw std::invalid_argument("Point coordinates must be finite");
-    }
-}
-
-bool
-point_t::operator==(const point_t &refPoint) const {
-    return x_ == refPoint.x_ && y_ == refPoint.y_ && z_ == refPoint.z_;
-}
-
-bool
-point_t::isApprox(const point_t &otherPoint, double tolerance) const {
-    if (!std::isfinite(tolerance) || tolerance < 0.0) {
-        throw std::invalid_argument("Comparison tolerance must be finite and non-negative");
-    }
-    return std::fabs(x_ - otherPoint.x_) <= tolerance &&
-           std::fabs(y_ - otherPoint.y_) <= tolerance &&
-           std::fabs(z_ - otherPoint.z_) <= tolerance;
-}
-
-double
-point_t::distance(const point_t &otherPoint) const {
-    double dx = x_ - otherPoint.x();
-    double dy = y_ - otherPoint.y();
-    double dz = z_ - otherPoint.z();
-
-    return std::hypot(dx, dy, dz);
-};
-
-static double
-point_t::orient3D(const point_t &a, const point_t &b,
-                 const point_t &c, const point_t &d) {
-    vector_t vecBA{b, a};
-    vector_t vecCA{c, a};
-    vector_t vecDA{d, a};
-
-    return (vecBA.cross(vecCA)).dot(vecDA);
-}
-
-segment_t::segment_t(const point_t &a, const point_t &b)
+segment_t::segment_t(const point_t<3> &a, const point_t<3> &b)
     : a_(a),
       b_(b) {
     if (a.isApprox(b)) {
@@ -71,7 +26,7 @@ segment_t::direction() const {
 }
 
 double
-segment_t::signedDistanceToLine(const point_t& p, const vector_t& planeNormal) const {
+segment_t::signedDistanceToLine(const point_t<3>& p, const vector_t& planeNormal) const {
     vector_t lineDir = direction();
     double dist = (lineDir.cross(vector_t{a_, p})).dot(planeNormal) / lineDir.length();
 
@@ -79,7 +34,7 @@ segment_t::signedDistanceToLine(const point_t& p, const vector_t& planeNormal) c
 }
 
 bool
-segment_t::projectionFallsOnSegment(const point_t& p) const {
+segment_t::projectionFallsOnSegment(const point_t<3>& p) const {
     vector_t lineDir = direction();
     double length = lineDir.length();
 
@@ -113,7 +68,7 @@ segment_t::isIntersectsCoplanar(const segment_t& other, const vector_t& planeNor
            (isDoubleZero(signedDistB) && other.projectionFallsOnSegment(b_));
 }
 
-vector_t::vector_t(const point_t &origin, const point_t &end) {
+vector_t::vector_t(const point_t<3> &origin, const point_t<3> &end) {
     x_ = end.x() - origin.x();
     y_ = end.y() - origin.y();
     z_ = end.z() - origin.z();
@@ -206,9 +161,9 @@ vector_t::operator*(double number) const {
 }
 
 
-triangle_t::triangle_t(const point_t& firstPoint,
-                       const point_t& secondPoint,
-                       const point_t& thirdPoint)
+triangle_t::triangle_t(const point_t<3>& firstPoint,
+                       const point_t<3>& secondPoint,
+                       const point_t<3>& thirdPoint)
     : polygon_t({firstPoint, secondPoint, thirdPoint}) {}
 
 double
@@ -289,7 +244,7 @@ polygon_t::validateSelfIntersections() const {
     }
 }
 
-polygon_t::polygon_t(std::vector<point_t> points)
+polygon_t::polygon_t(std::vector<point_t<3>> points)
     : points_(std::move(points)) {
     if (points_.size() < 3) {
         throw std::invalid_argument("The polygon must have at least three vertices.");
