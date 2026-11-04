@@ -10,6 +10,17 @@ module geometry;
 
 namespace geometry {
 
+template <std::size_t Dim>
+double point_t<Dim>::orient2D(const point_t& a, const point_t& b,
+                       const point_t& c) requires (Dim == 2) {
+    return (b.x() - a.x()) * (c.y() - a.y()) -
+           (b.y() - a.y()) * (c.x() - a.x());
+}
+
+template double point_t<2>::orient2D(const point_t<2>& a,
+                                      const point_t<2>& b,
+                                      const point_t<2>& c);
+
 segment_t::segment_t(const point_t<3> &a, const point_t<3> &b)
     : a_(a),
       b_(b) {

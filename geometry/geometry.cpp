@@ -41,6 +41,8 @@ public:
     double y() const requires (Dim >= 2) { return coordinates_[1]; }
     double z() const requires (Dim >= 3) { return coordinates_[2]; }
 
+    point_t<Dim - 1> project(std::size_t droppedAxis) const requires (Dim > 1);
+
     bool operator==(const point_t& otherPoint) const = default;
 
     bool isApprox(const point_t& otherPoint, double tolerance = EPSILON) const {
@@ -63,6 +65,9 @@ public:
         }
         return result;
     }
+
+    static double orient2D(const point_t& a, const point_t& b,
+                           const point_t& c) requires (Dim == 2);
 
     static double orient3D(const point_t& a, const point_t& b,
                            const point_t& c, const point_t& d) requires (Dim == 3);
@@ -95,6 +100,20 @@ public:
     vector_t cross(const vector_t &otherVector) const;
     double dot(const vector_t &otherVector) const;
 };
+
+template <std::size_t Dim>
+point_t<Dim - 1> point_t<Dim>::project(std::size_t droppedAxis) const requires (Dim > 1) {
+    if (droppedAxis >= Dim) {
+        throw std::out_of_range("Projection axis is out of range");
+    }
+    std::array<double, Dim - 1> coordinates{};
+    for (std::size_t source = 0, target = 0; source < Dim; ++source) {
+        if (source != droppedAxis) {
+            coordinates[target++] = coordinates_[source];
+        }
+    }
+    return point_t<Dim - 1>(coordinates);
+}
 
 template <std::size_t Dim>
 double point_t<Dim>::orient3D(const point_t& a, const point_t& b,
