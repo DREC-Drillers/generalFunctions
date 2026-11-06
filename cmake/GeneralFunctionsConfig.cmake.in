@@ -1,6 +1,6 @@
 @PACKAGE_INIT@
 
-set(_general_functions_supported_components lexer files geometry)
+set(_general_functions_supported_components lexer files geometry tree)
 set(_general_functions_requested_components "${GeneralFunctions_FIND_COMPONENTS}")
 
 # Without COMPONENTS, expose every component installed in this package.

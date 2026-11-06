@@ -12,6 +12,7 @@ include(CMakePackageConfigHelpers)
 option(GENERAL_FUNCTIONS_BUILD_LEXER "Build the lexer component" ON)
 option(GENERAL_FUNCTIONS_BUILD_GEOMETRY "Build the C++20 geometry module" ON)
 option(GENERAL_FUNCTIONS_BUILD_FILES "Build file utilities (requires file.cpp/file.h)" OFF)
+option(GENERAL_FUNCTIONS_BUILD_TREE "Build the header-only binary tree component" ON)
 option(GENERAL_FUNCTIONS_BUILD_TESTS "Build GoogleTest component tests" OFF)
 
 function(add_general_functions_component component_name cpp_standard)
@@ -79,6 +80,23 @@ if(GENERAL_FUNCTIONS_BUILD_GEOMETRY)
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GeneralFunctions)
 endif()
 
+if(GENERAL_FUNCTIONS_BUILD_TREE)
+    add_library(general_functions_tree INTERFACE)
+    add_library(GeneralFunctions::tree ALIAS general_functions_tree)
+    set_target_properties(general_functions_tree PROPERTIES EXPORT_NAME tree)
+    target_compile_features(general_functions_tree INTERFACE cxx_std_17)
+    target_include_directories(general_functions_tree INTERFACE
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>"
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions>")
+    install(TARGETS general_functions_tree EXPORT GeneralFunctionsTreeTargets)
+    install(FILES tree/binary_tree.hpp
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/tree)
+    install(EXPORT GeneralFunctionsTreeTargets
+        FILE GeneralFunctions-tree-targets.cmake
+        NAMESPACE GeneralFunctions::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GeneralFunctions)
+endif()
+
 configure_package_config_file(cmake/GeneralFunctionsConfig.cmake.in
     "${CMAKE_CURRENT_BINARY_DIR}/GeneralFunctionsConfig.cmake"
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GeneralFunctions)
@@ -92,6 +110,11 @@ install(FILES
 
 if(GENERAL_FUNCTIONS_BUILD_TESTS)
     enable_testing()
+    if(GENERAL_FUNCTIONS_BUILD_TREE)
+        add_executable(tree_smoke tests/tree_smoke.cpp)
+        target_link_libraries(tree_smoke PRIVATE GeneralFunctions::tree)
+        add_test(NAME tree_smoke COMMAND tree_smoke)
+    endif()
     find_package(GTest CONFIG REQUIRED)
     include(GoogleTest)
     if(GENERAL_FUNCTIONS_BUILD_LEXER)
