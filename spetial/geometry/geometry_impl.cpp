@@ -324,7 +324,6 @@ template class triangle_t<3>;
 
 axisAlignedBoundingBox_t::axisAlignedBoundingBox_t(
     const point_t<3>& min, const point_t<3>& max) : min_(min), max_(max) {
-    // point_t already guarantees finite coordinates.
     for (std::size_t axis = 0; axis < 3; ++axis) {
         if (min_[axis] > max_[axis]) {
             throw std::invalid_argument("axisAlignedBoundingBox_t: min must be <= max");
