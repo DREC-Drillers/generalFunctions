@@ -177,6 +177,7 @@ private:
 
 public:
     polygon_t(std::vector<point_t<Dim>> points);
+    virtual ~polygon_t() = default;
 
     polygon_t(const polygon_t&) = default;
     polygon_t(polygon_t&&) = default;
