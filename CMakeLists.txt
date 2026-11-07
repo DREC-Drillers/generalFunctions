@@ -12,6 +12,8 @@ include(CMakePackageConfigHelpers)
 option(GENERAL_FUNCTIONS_BUILD_LEXER "Build the lexer component" ON)
 option(GENERAL_FUNCTIONS_BUILD_GEOMETRY "Build the C++20 geometry module" ON)
 option(GENERAL_FUNCTIONS_BUILD_FILES "Build file utilities (requires file.cpp/file.h)" OFF)
+option(GENERAL_FUNCTIONS_BUILD_TREE "Build the header-only binary tree component" ON)
+option(GENERAL_FUNCTIONS_BUILD_BVH "Build BVH (requires geometry and tree)" ${GENERAL_FUNCTIONS_BUILD_GEOMETRY})
 option(GENERAL_FUNCTIONS_BUILD_TESTS "Build GoogleTest component tests" OFF)
 
 function(add_general_functions_component component_name cpp_standard)
@@ -68,14 +70,46 @@ if(GENERAL_FUNCTIONS_BUILD_GEOMETRY)
     add_general_functions_component(geometry 20)
     target_sources(general_functions_geometry
         # Install/export the interface source so consumers can rebuild its BMI.
-        PUBLIC FILE_SET CXX_MODULES FILES geometry/geometry.cpp
-        PRIVATE geometry/geometry_impl.cpp)
+        PUBLIC FILE_SET CXX_MODULES FILES spetial/geometry/geometry.cpp
+        PRIVATE spetial/geometry/geometry_impl.cpp)
     install(TARGETS general_functions_geometry EXPORT GeneralFunctionsGeometryTargets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         FILE_SET CXX_MODULES DESTINATION ${CMAKE_INSTALL_DATADIR}/generalFunctions/modules)
     install(EXPORT GeneralFunctionsGeometryTargets
         FILE GeneralFunctions-geometry-targets.cmake
         NAMESPACE GeneralFunctions:: CXX_MODULES_DIRECTORY modules
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GeneralFunctions)
+endif()
+
+if(GENERAL_FUNCTIONS_BUILD_TREE)
+    add_library(general_functions_tree INTERFACE)
+    add_library(GeneralFunctions::tree ALIAS general_functions_tree)
+    set_target_properties(general_functions_tree PROPERTIES EXPORT_NAME tree)
+    target_compile_features(general_functions_tree INTERFACE cxx_std_17)
+    target_include_directories(general_functions_tree INTERFACE
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>"
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions>")
+    install(TARGETS general_functions_tree EXPORT GeneralFunctionsTreeTargets)
+    install(FILES tree/binary_tree.hpp
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/tree)
+    install(EXPORT GeneralFunctionsTreeTargets
+        FILE GeneralFunctions-tree-targets.cmake
+        NAMESPACE GeneralFunctions::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GeneralFunctions)
+endif()
+
+if(GENERAL_FUNCTIONS_BUILD_BVH)
+    if(NOT GENERAL_FUNCTIONS_BUILD_GEOMETRY OR NOT GENERAL_FUNCTIONS_BUILD_TREE)
+        message(FATAL_ERROR "BVH requires GENERAL_FUNCTIONS_BUILD_GEOMETRY and GENERAL_FUNCTIONS_BUILD_TREE")
+    endif()
+    add_general_functions_component(bvh 20)
+    target_sources(general_functions_bvh PRIVATE spetial/bvh.cpp)
+    target_link_libraries(general_functions_bvh PUBLIC GeneralFunctions::geometry GeneralFunctions::tree)
+    install(TARGETS general_functions_bvh EXPORT GeneralFunctionsBvhTargets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    install(FILES spetial/bvh.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/spetial)
+    install(EXPORT GeneralFunctionsBvhTargets
+        FILE GeneralFunctions-bvh-targets.cmake NAMESPACE GeneralFunctions::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GeneralFunctions)
 endif()
 
@@ -92,6 +126,11 @@ install(FILES
 
 if(GENERAL_FUNCTIONS_BUILD_TESTS)
     enable_testing()
+    if(GENERAL_FUNCTIONS_BUILD_TREE)
+        add_executable(tree_smoke tests/tree_smoke.cpp)
+        target_link_libraries(tree_smoke PRIVATE GeneralFunctions::tree)
+        add_test(NAME tree_smoke COMMAND tree_smoke)
+    endif()
     find_package(GTest CONFIG REQUIRED)
     include(GoogleTest)
     if(GENERAL_FUNCTIONS_BUILD_LEXER)
@@ -102,6 +141,10 @@ if(GENERAL_FUNCTIONS_BUILD_TESTS)
         endforeach()
     endif()
     if(GENERAL_FUNCTIONS_BUILD_GEOMETRY)
+        add_executable(aabb_tests tests/aabb_test.cpp)
+        set_target_properties(aabb_tests PROPERTIES CXX_EXTENSIONS OFF)
+        target_link_libraries(aabb_tests PRIVATE GeneralFunctions::geometry GTest::gtest_main)
+        gtest_discover_tests(aabb_tests)
         add_executable(geometry_smoke tests/geometry_smoke.cpp)
         set_property(TARGET geometry_smoke PROPERTY CXX_EXTENSIONS OFF)
         target_link_libraries(geometry_smoke PRIVATE GeneralFunctions::geometry GTest::gtest_main)
@@ -109,3 +152,10 @@ if(GENERAL_FUNCTIONS_BUILD_TESTS)
     endif()
 endif()
 
+
+if(GENERAL_FUNCTIONS_BUILD_TESTS AND GENERAL_FUNCTIONS_BUILD_BVH)
+    add_executable(bvh_tests tests/bvh_test.cpp)
+    set_target_properties(bvh_tests PROPERTIES CXX_EXTENSIONS OFF)
+    target_link_libraries(bvh_tests PRIVATE GeneralFunctions::bvh GTest::gtest_main)
+    gtest_discover_tests(bvh_tests)
+endif()

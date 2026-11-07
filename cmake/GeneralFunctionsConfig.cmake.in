@@ -1,6 +1,6 @@
 @PACKAGE_INIT@
 
-set(_general_functions_supported_components lexer files geometry)
+set(_general_functions_supported_components lexer files geometry tree bvh)
 set(_general_functions_requested_components "${GeneralFunctions_FIND_COMPONENTS}")
 
 # Without COMPONENTS, expose every component installed in this package.
@@ -11,6 +11,12 @@ if(NOT _general_functions_requested_components)
             list(APPEND _general_functions_requested_components "${_component}")
         endif()
     endforeach()
+endif()
+
+# Load exported public dependencies before the BVH target, even for COMPONENTS bvh.
+if("bvh" IN_LIST _general_functions_requested_components)
+    list(PREPEND _general_functions_requested_components geometry tree)
+    list(REMOVE_DUPLICATES _general_functions_requested_components)
 endif()
 
 foreach(_component IN LISTS _general_functions_requested_components)
