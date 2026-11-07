@@ -73,6 +73,22 @@ public:
                            const point_t& c, const point_t& d) requires (Dim == 3);
 };
 
+class axisAlignedBoundingBox_t {
+public:
+    axisAlignedBoundingBox_t(const point_t<3>& min, const point_t<3>& max);
+
+    const point_t<3>& min() const noexcept;
+    const point_t<3>& max() const noexcept;
+
+    bool overlaps(const axisAlignedBoundingBox_t& other) const noexcept;
+    void expand(const axisAlignedBoundingBox_t& other) noexcept;
+    point_t<3> center() const noexcept;
+
+private:
+    point_t<3> min_;
+    point_t<3> max_;
+};
+
 class vector_t {
     double x_ = NAN;
     double y_ = NAN;
@@ -161,6 +177,7 @@ private:
 
 public:
     polygon_t(std::vector<point_t<Dim>> points);
+    virtual ~polygon_t() = default;
 
     polygon_t(const polygon_t&) = default;
     polygon_t(polygon_t&&) = default;

@@ -1,5 +1,7 @@
 module;
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <stdexcept>
 #include <vector>
@@ -319,5 +321,49 @@ template class polygon_t<2>;
 template class polygon_t<3>;
 template class triangle_t<2>;
 template class triangle_t<3>;
+
+axisAlignedBoundingBox_t::axisAlignedBoundingBox_t(
+    const point_t<3>& min, const point_t<3>& max) : min_(min), max_(max) {
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+        if (min_[axis] > max_[axis]) {
+            throw std::invalid_argument("axisAlignedBoundingBox_t: min must be <= max");
+        }
+    }
+}
+
+const point_t<3>& axisAlignedBoundingBox_t::min() const noexcept { return min_; }
+
+const point_t<3>& axisAlignedBoundingBox_t::max() const noexcept { return max_; }
+
+bool axisAlignedBoundingBox_t::overlaps(const axisAlignedBoundingBox_t& other) const noexcept {
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+        if (max_[axis] < other.min_[axis] || other.max_[axis] < min_[axis]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void axisAlignedBoundingBox_t::expand(const axisAlignedBoundingBox_t& other) noexcept {
+    std::array<double, 3> lower{};
+    std::array<double, 3> upper{};
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+        lower[axis] = std::min(min_[axis], other.min_[axis]);
+        upper[axis] = std::max(max_[axis], other.max_[axis]);
+    }
+    min_ = point_t<3>(lower);
+    max_ = point_t<3>(upper);
+}
+
+point_t<3> axisAlignedBoundingBox_t::center() const noexcept {
+    std::array<double, 3> result{};
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+        const double lower = min_[axis];
+        const double upper = max_[axis];
+        result[axis] = lower <= 0 && upper >= 0 ? (lower + upper) / 2
+                                               : lower + (upper - lower) / 2;
+    }
+    return point_t<3>(result);
+}
 
 } // namespace geometry
