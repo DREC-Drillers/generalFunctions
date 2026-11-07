@@ -8,6 +8,8 @@
   buildLexer ? true,
   buildGeometry ? true,
   buildFiles ? false,
+  buildTree ? true,
+  buildBvh ? buildGeometry,
 }:
 
 stdenv.mkDerivation {
@@ -34,6 +36,8 @@ stdenv.mkDerivation {
     (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_LEXER" buildLexer)
     (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_GEOMETRY" buildGeometry)
     (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_FILES" buildFiles)
+    (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_TREE" buildTree)
+    (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_BVH" buildBvh)
     (lib.cmakeBool "GENERAL_FUNCTIONS_BUILD_TESTS" (buildLexer || buildGeometry))
   ] ++ lib.optional (buildGeometry && stdenv.cc.isClang)
     # CMake otherwise finds the unwrapped scanner, which misses Nix header paths.

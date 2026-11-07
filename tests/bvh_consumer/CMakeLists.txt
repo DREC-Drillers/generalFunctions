@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.28)
+project(BvhConsumer LANGUAGES CXX)
+find_package(GeneralFunctions CONFIG REQUIRED COMPONENTS bvh)
+add_executable(bvh_consumer ../bvh_consumer.cpp)
+set_target_properties(bvh_consumer PROPERTIES CXX_EXTENSIONS OFF)
+target_link_libraries(bvh_consumer PRIVATE GeneralFunctions::bvh GeneralFunctions::geometry)
+enable_testing()
+add_test(NAME bvh_consumer COMMAND bvh_consumer)
