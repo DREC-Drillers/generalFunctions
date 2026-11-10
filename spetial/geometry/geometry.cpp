@@ -171,7 +171,7 @@ class polygon_t {
 private:
     std::vector<point_t<Dim>> points_;
 
-    void validateCollinearity() const;
+    vector_t findNormal() const;
     void validateCoplanarity() const requires (Dim == 3);
     void validateSelfIntersections() const;
 

@@ -195,34 +195,40 @@ double triangle_t<Dim>::lenCA() const { return c().distance(a()); }
 
 template <std::size_t Dim>
     requires (Dim == 2 || Dim == 3)
-void polygon_t<Dim>::validateCollinearity() const {
-    const std::size_t count = numOfPoints();
-    for (std::size_t i = 0; i < count; ++i) {
-        const auto& first = point(i);
-        const auto& second = point((i + 1) % count);
-        const auto& third = point((i + 2) % count);
-        if (first.isApprox(second)) {
-            throw std::invalid_argument("Adjacent polygon vertices must be distinct");
-        }
-        double distanceToLine;
+vector_t polygon_t<Dim>::findNormal() const {
+    const auto& firstVertex = point(0);
+    std::size_t numOfVertDiffFromFirst = 1;
+    while (numOfVertDiffFromFirst < numOfPoints() &&
+           point(numOfVertDiffFromFirst) == firstVertex) {
+        ++numOfVertDiffFromFirst;
+    }
+    if (numOfVertDiffFromFirst == numOfPoints()) {
+        return vector_t(0, 0, 0);
+    }
+
+    for (std::size_t i = numOfVertDiffFromFirst + 1; i < numOfPoints(); ++i) {
         if constexpr (Dim == 2) {
-            distanceToLine = std::fabs(point_t<2>::orient2D(first, second, third)) /
-                             first.distance(second);
+            const double orientation = point_t<2>::orient2D(
+                firstVertex, point(numOfVertDiffFromFirst), point(i));
+            if (orientation != 0.0) {
+                return vector_t(0, 0, orientation > 0.0 ? 1 : -1);
+            }
         } else {
-            distanceToLine = vector_t(first, second).normalized().cross(
-                vector_t(second, third)).length();
-        }
-        if (isDoubleZero(distanceToLine)) {
-            throw std::invalid_argument("Consecutive polygon vertices must not be collinear");
+            const vector_t direction(firstVertex, point(numOfVertDiffFromFirst));
+            const auto normal = direction.cross(vector_t(firstVertex, point(i)));
+            if (normal.length() != 0.0) {
+                return normal.normalized();
+            }
         }
     }
+    return vector_t(0, 0, 0);
 }
 
 template <std::size_t Dim>
     requires (Dim == 2 || Dim == 3)
 void polygon_t<Dim>::validateCoplanarity() const requires (Dim == 3) {
-    const auto normal = unitNormal();
-    for (std::size_t i = 3; i < numOfPoints(); ++i) {
+    const auto normal = findNormal();
+    for (std::size_t i = 1; i < numOfPoints(); ++i) {
         if (!isDoubleZero(vector_t(point(0), point(i)).dot(normal))) {
             throw std::invalid_argument("Polygon vertices must lie in the same plane");
         }
@@ -257,7 +263,22 @@ bool doSegmentsIntersect2D(const point_t<2>& a, const point_t<2>& b,
 template <std::size_t Dim>
     requires (Dim == 2 || Dim == 3)
 void polygon_t<Dim>::validateSelfIntersections() const {
-    const std::size_t count = numOfPoints();
+    const auto normal = findNormal();
+    if (normal.length() == 0.0) {
+        return;
+    }
+
+    std::vector<point_t<Dim>> vertices;
+    for (const auto& vertex : points_) {
+        if (vertices.empty() || !vertices.back().isApprox(vertex)) {
+            vertices.push_back(vertex);
+        }
+    }
+    if (vertices.size() > 1 && vertices.front().isApprox(vertices.back())) {
+        vertices.pop_back();
+    }
+
+    const std::size_t count = vertices.size();
     for (std::size_t i = 0; i < count; ++i) {
         const std::size_t nextI = (i + 1) % count;
         for (std::size_t j = i + 1; j < count; ++j) {
@@ -267,11 +288,12 @@ void polygon_t<Dim>::validateSelfIntersections() const {
             }
             bool intersects;
             if constexpr (Dim == 2) {
-                intersects = doSegmentsIntersect2D(point(i), point(nextI), point(j), point(nextJ));
+                intersects = doSegmentsIntersect2D(vertices[i], vertices[nextI],
+                                                   vertices[j], vertices[nextJ]);
             } else {
-                const segment_t first(point(i), point(nextI));
-                const segment_t second(point(j), point(nextJ));
-                intersects = first.isIntersectsCoplanar(second, unitNormal());
+                const segment_t first(vertices[i], vertices[nextI]);
+                const segment_t second(vertices[j], vertices[nextJ]);
+                intersects = first.isIntersectsCoplanar(second, normal);
             }
             if (intersects) {
                 throw std::invalid_argument("Polygon edges must not intersect");
@@ -286,7 +308,6 @@ polygon_t<Dim>::polygon_t(std::vector<point_t<Dim>> points) : points_(std::move(
     if (points_.size() < 3) {
         throw std::invalid_argument("The polygon must have at least three vertices");
     }
-    validateCollinearity();
     if constexpr (Dim == 3) {
         validateCoplanarity();
     }
@@ -314,7 +335,11 @@ double polygon_t<Dim>::area() const {
 template <std::size_t Dim>
     requires (Dim == 2 || Dim == 3)
 vector_t polygon_t<Dim>::unitNormal() const requires (Dim == 3) {
-    return vector_t(point(0), point(1)).cross(vector_t(point(0), point(2))).normalized();
+    const auto normal = findNormal();
+    if (normal.length() == 0.0) {
+        throw std::invalid_argument("A degenerate polygon has no unique plane normal");
+    }
+    return normal;
 }
 
 template class polygon_t<2>;

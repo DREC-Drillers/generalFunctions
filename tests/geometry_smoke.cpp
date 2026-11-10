@@ -118,16 +118,48 @@ TEST(Triangle2D, AreaIsIndependentOfWindingAndVertexOrder) {
     } while (std::next_permutation(order.begin(), order.end()));
 }
 
-TEST(Triangle2D, RejectsCoincidentAndCollinearVertices) {
-    const auto a = makePoint<2>({0, 0});
-    const auto b = makePoint<2>({1, 1});
-    EXPECT_THROW((geometry::triangle_t<2>(a, a, b)), std::invalid_argument);
-    EXPECT_THROW((geometry::triangle_t<2>(a, b, b)), std::invalid_argument);
-    EXPECT_THROW((geometry::triangle_t<2>(a, b, a)), std::invalid_argument);
-    EXPECT_THROW((geometry::triangle_t<2>(a, b, makePoint<2>({2, 2}))),
-                 std::invalid_argument);
-    EXPECT_THROW((geometry::triangle_t<2>(a, makePoint<2>({0, 1}), makePoint<2>({0, 2}))),
-                 std::invalid_argument);
+template <std::size_t Dim>
+void checkDegenerateGeometry() {
+    std::array<double, Dim> coordinates{};
+    const auto a = makePoint<Dim>(coordinates);
+    for (std::size_t axis = 0; axis < Dim; ++axis) {
+        coordinates[axis] = axis + 1;
+    }
+    const auto b = makePoint<Dim>(coordinates);
+    for (double& coordinate : coordinates) {
+        coordinate *= 2;
+    }
+    const auto c = makePoint<Dim>(coordinates);
+
+    for (const auto& vertices : std::vector<std::vector<geometry::point_t<Dim>>>{
+             {a, a, a}, {a, a, b}, {a, b, b}, {a, b, a}, {a, b, c},
+             {c, a, b}, {a, a, a, a}, {a, b, c, b, a}}) {
+        const geometry::polygon_t<Dim> polygon(vertices);
+        EXPECT_EQ(polygon.points(), vertices);
+        EXPECT_DOUBLE_EQ(polygon.area(), 0);
+        if constexpr (Dim == 3) {
+            EXPECT_THROW(polygon.unitNormal(), std::invalid_argument);
+        }
+        if (vertices.size() == 3) {
+            const geometry::triangle_t<Dim> triangle(vertices[0], vertices[1], vertices[2]);
+            EXPECT_EQ(triangle.points(), vertices);
+            EXPECT_DOUBLE_EQ(triangle.area(), 0);
+            EXPECT_DOUBLE_EQ(triangle.lenAB(), vertices[0].distance(vertices[1]));
+            EXPECT_DOUBLE_EQ(triangle.lenBC(), vertices[1].distance(vertices[2]));
+            EXPECT_DOUBLE_EQ(triangle.lenCA(), vertices[2].distance(vertices[0]));
+            if constexpr (Dim == 3) {
+                EXPECT_THROW(triangle.unitNormal(), std::invalid_argument);
+            }
+        }
+    }
+}
+
+TEST(Polygon2D, AllowsDegeneratePolygonsAndTriangles) {
+    checkDegenerateGeometry<2>();
+}
+
+TEST(Polygon3D, AllowsDegeneratePolygonsAndTriangles) {
+    checkDegenerateGeometry<3>();
 }
 
 TEST(Triangle3D, PreservesVerticesAreaAndNormal) {
@@ -146,7 +178,6 @@ TEST(Triangle3D, PreservesVerticesAreaAndNormal) {
     const geometry::polygon_t<3>& polygon = triangle;
     EXPECT_DOUBLE_EQ(polygon.area(), 6);
     EXPECT_TRUE(triangle.unitNormal().isApprox(geometry::vector_t(0, 0, 1)));
-    EXPECT_THROW((geometry::triangle_t<3>(a, a, c)), std::invalid_argument);
 }
 
 TEST(Triangle, DeducesDimensionFromVertices) {
@@ -178,9 +209,24 @@ void checkPolygonGeometry() {
     EXPECT_DOUBLE_EQ(forward.area(), 3);
     EXPECT_DOUBLE_EQ(backward.area(), 3);
     EXPECT_THROW((geometry::polygon_t<Dim>({a, b})), std::invalid_argument);
-    EXPECT_THROW((geometry::polygon_t<Dim>({a, a, e})), std::invalid_argument);
-    EXPECT_THROW((geometry::polygon_t<Dim>({a, point(1, 0), b})), std::invalid_argument);
     EXPECT_THROW((geometry::polygon_t<Dim>({a, d, e, b})), std::invalid_argument);
+
+    // Leading duplicates/collinear vertices and an explicit closing vertex
+    // must not prevent validation or change the stored boundary.
+    const std::vector<geometry::point_t<Dim>> vertices{
+        a, a, point(1, 0), b, b, d, e, a};
+    const geometry::polygon_t<Dim> redundant(vertices);
+    EXPECT_EQ(redundant.points(), vertices);
+    EXPECT_DOUBLE_EQ(redundant.area(), 4);
+    const geometry::polygon_t<Dim> reversed(
+        std::vector<geometry::point_t<Dim>>(vertices.rbegin(), vertices.rend()));
+    EXPECT_DOUBLE_EQ(reversed.area(), 4);
+    if constexpr (Dim == 3) {
+        EXPECT_TRUE(redundant.unitNormal().isApprox(geometry::vector_t(0, 0, 1)));
+        EXPECT_TRUE(reversed.unitNormal().isApprox(geometry::vector_t(0, 0, -1)));
+    }
+    EXPECT_THROW((geometry::polygon_t<Dim>({a, a, d, d, e, b, a})),
+                 std::invalid_argument);
 }
 
 TEST(Polygon2D, ValidatesVerticesAndComputesConcaveArea) {
@@ -191,6 +237,10 @@ TEST(Polygon3D, PreservesValidationAndConcaveArea) {
     checkPolygonGeometry<3>();
     EXPECT_THROW((geometry::polygon_t<3>({makePoint<3>({0, 0, 0}),
         makePoint<3>({1, 0, 0}), makePoint<3>({1, 1, 0}), makePoint<3>({0, 1, 1})})),
+        std::invalid_argument);
+    EXPECT_THROW((geometry::polygon_t<3>({makePoint<3>({0, 0, 0}),
+        makePoint<3>({0, 0, 0}), makePoint<3>({1, 0, 0}),
+        makePoint<3>({2, 0, 0}), makePoint<3>({0, 1, 0}), makePoint<3>({0, 0, 1})})),
         std::invalid_argument);
 }
 
