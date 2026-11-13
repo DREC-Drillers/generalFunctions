@@ -24,9 +24,87 @@ void requireThrows(Operation operation) {
     throw std::runtime_error("Expected exception was not thrown");
 }
 
+struct ThrowingCopy {
+    explicit ThrowingCopy(int data) : value(data) {}
+
+    ThrowingCopy(const ThrowingCopy& other) : value(other.value) { checkCopy(); }
+    ThrowingCopy(ThrowingCopy&&) noexcept = default;
+
+    ThrowingCopy& operator=(const ThrowingCopy& other) {
+        checkCopy();
+        value = other.value;
+        return *this;
+    }
+    ThrowingCopy& operator=(ThrowingCopy&&) noexcept = default;
+
+    static void checkCopy() {
+        if (copiesBeforeThrow == 0) {
+            throw std::runtime_error("Injected copy failure");
+        }
+        if (copiesBeforeThrow > 0) {
+            --copiesBeforeThrow;
+        }
+    }
+
+    int value;
+    inline static int copiesBeforeThrow = -1;
+};
+
+void testCopyExceptionSafety() {
+    using Tree = general_functions::BinaryTree<ThrowingCopy>;
+    Tree target;
+    target.reserve(8);
+    const auto targetRoot = target.addRoot(ThrowingCopy(1));
+    const auto targetLeft = target.addLeft(targetRoot, ThrowingCopy(2));
+    Tree source;
+    const auto sourceRoot = source.addRoot(ThrowingCopy(10));
+    const auto sourceLeft = source.addLeft(sourceRoot, ThrowingCopy(20));
+    const auto sourceRight = source.addRight(sourceRoot, ThrowingCopy(30));
+
+    // The old vector assignment copied the root links before the second copy
+    // failed, leaving target.right(root) == 2 while target.size() == 2.
+    ThrowingCopy::copiesBeforeThrow = 1;
+    requireThrows<std::runtime_error>([&] { target = source; });
+    require(target.size() == 2 && target.root() == targetRoot);
+    require(target.left(targetRoot) == targetLeft && !target.right(targetRoot));
+    require(target.value(targetRoot).value == 1 &&
+            target.value(targetLeft).value == 2);
+    require(source.size() == 3 && source.value(sourceRoot).value == 10);
+    require(source.left(sourceRoot) == sourceLeft &&
+            source.right(sourceRoot) == sourceRight);
+
+    ThrowingCopy::copiesBeforeThrow = 1;
+    requireThrows<std::runtime_error>([&] { Tree copy(source); });
+    require(source.size() == 3 && source.value(sourceLeft).value == 20);
+
+    // Self-assignment must not copy even if the next copy would throw.
+    ThrowingCopy::copiesBeforeThrow = 0;
+    auto& sameTarget = target;
+    target = sameTarget;
+    require(target.size() == 2 && target.value(targetRoot).value == 1);
+
+    ThrowingCopy::copiesBeforeThrow = -1;
+    target = source;
+    require(target.size() == 3 && target.left(sourceRoot) == sourceLeft);
+    require(target.right(sourceRoot) == sourceRight);
+    target.value(sourceLeft).value = 99;
+    require(source.value(sourceLeft).value == 20);
+
+    Tree empty;
+    target = empty;
+    require(target.empty() && !target.root());
+    empty = source;
+    require(empty.size() == 3 && empty.value(sourceRight).value == 30);
+
+    using std::swap;
+    swap(target, empty);
+    require(target.size() == 3 && empty.empty());
+}
+
 } // namespace
 
 int main() {
+    testCopyExceptionSafety();
     using general_functions::BinaryTree;
     BinaryTree<int> tree;
     require(tree.empty() && tree.size() == 0 && !tree.root());
@@ -74,4 +152,10 @@ int main() {
     require(*owning.value(owningRoot) == 7 && *owning.value(owningChild) == 9);
     auto movedOwning = std::move(owning);
     require(*movedOwning.value(owningChild) == 9);
+    BinaryTree<std::unique_ptr<int>> assignedOwning;
+    assignedOwning.addRoot(std::make_unique<int>(-1));
+    assignedOwning = std::move(movedOwning);
+    require(*assignedOwning.value(owningRoot) == 7);
+    require(assignedOwning.right(owningRoot) == owningChild);
+    require(*assignedOwning.value(owningChild) == 9);
 }

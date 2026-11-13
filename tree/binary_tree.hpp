@@ -19,6 +19,27 @@ class BinaryTree {
 public:
     using NodeId = std::uint32_t;
 
+    BinaryTree() = default;
+    BinaryTree(const BinaryTree&) = default;
+    BinaryTree(BinaryTree&&) noexcept = default;
+
+    // Strong exception guarantee: failed copying leaves this tree unchanged.
+    BinaryTree& operator=(const BinaryTree& other) {
+        if (this != &other) {
+            BinaryTree copy(other);
+            swap(copy);
+        }
+        return *this;
+    }
+
+    BinaryTree& operator=(BinaryTree&&) noexcept = default;
+
+    void swap(BinaryTree& other) noexcept { nodes_.swap(other.nodes_); }
+
+    friend void swap(BinaryTree& left, BinaryTree& right) noexcept {
+        left.swap(right);
+    }
+
     bool empty() const noexcept { return nodes_.empty(); }
     std::size_t size() const noexcept { return nodes_.size(); }
 
