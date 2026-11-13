@@ -23,6 +23,17 @@ template double point_t<2>::orient2D(const point_t<2>& a,
                                       const point_t<2>& b,
                                       const point_t<2>& c);
 
+double
+point_t::signedDistanceToPlane(const point_t<3>& a,
+                               const point_t<3>& b, const point_t<3>& c) {
+    const auto normal = vector_t(a, b).cross(vector_t(a, c));
+    if (normal.length() == 0.0) {
+        return 0.0;
+    }
+
+    return vector_t(point, a).dot(normal.normalized());
+}
+
 segment_t::segment_t(const point_t<3> &a, const point_t<3> &b)
     : a_(a),
       b_(b) {

@@ -66,6 +66,9 @@ public:
         return result;
     }
 
+    double signedDistanceToPlane(const point_t<3>& a, const point_t<3>& b,
+                                 const point_t<3>& c);
+
     static double orient2D(const point_t& a, const point_t& b,
                            const point_t& c) requires (Dim == 2);
 
