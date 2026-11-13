@@ -23,16 +23,21 @@ template double point_t<2>::orient2D(const point_t<2>& a,
                                       const point_t<2>& b,
                                       const point_t<2>& c);
 
-double
-point_t::signedDistanceToPlane(const point_t<3>& a,
-                               const point_t<3>& b, const point_t<3>& c) {
+template <std::size_t Dim>
+double point_t<Dim>::signedDistanceToPlane(const point_t<3>& a,
+                                          const point_t<3>& b,
+                                          const point_t<3>& c) const requires (Dim == 3) {
     const auto normal = vector_t(a, b).cross(vector_t(a, c));
     if (normal.length() == 0.0) {
         return 0.0;
     }
 
-    return vector_t(point, a).dot(normal.normalized());
+    return vector_t(*this, a).dot(normal.normalized());
 }
+
+template double point_t<3>::signedDistanceToPlane(const point_t<3>& a,
+                                                   const point_t<3>& b,
+                                                   const point_t<3>& c) const;
 
 segment_t::segment_t(const point_t<3> &a, const point_t<3> &b)
     : a_(a),
@@ -203,6 +208,22 @@ double triangle_t<Dim>::lenBC() const { return b().distance(c()); }
 template <std::size_t Dim>
     requires (Dim == 2 || Dim == 3)
 double triangle_t<Dim>::lenCA() const { return c().distance(a()); }
+
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+axisAlignedBoundingBox_t triangle_t<Dim>::aabbBounds() const requires (Dim == 3) {
+    const auto& first = a();
+    const auto& second = b();
+    const auto& third = c();
+
+    return axisAlignedBoundingBox_t(
+        point_t<3>({std::min({first.x(), second.x(), third.x()}),
+                     std::min({first.y(), second.y(), third.y()}),
+                     std::min({first.z(), second.z(), third.z()})}),
+        point_t<3>({std::max({first.x(), second.x(), third.x()}),
+                     std::max({first.y(), second.y(), third.y()}),
+                     std::max({first.z(), second.z(), third.z()})}));
+}
 
 template <std::size_t Dim>
     requires (Dim == 2 || Dim == 3)

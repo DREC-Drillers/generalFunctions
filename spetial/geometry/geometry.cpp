@@ -67,7 +67,7 @@ public:
     }
 
     double signedDistanceToPlane(const point_t<3>& a, const point_t<3>& b,
-                                 const point_t<3>& c);
+                                 const point_t<3>& c) const requires (Dim == 3);
 
     static double orient2D(const point_t& a, const point_t& b,
                            const point_t& c) requires (Dim == 2);
@@ -210,6 +210,8 @@ public:
     double lenAB() const;
     double lenBC() const;
     double lenCA() const;
+
+    axisAlignedBoundingBox_t aabbBounds() const requires (Dim == 3);
 };
 
 } // namespace geometry
