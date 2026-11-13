@@ -77,6 +77,55 @@ TEST(Point, PreservesOrient3DSignAndCoplanarity) {
     EXPECT_DOUBLE_EQ(geometry::point_t<3>::orient3D(a, b, c, makePoint<3>({2, 2, 0})), 0);
 }
 
+TEST(Segment, AllowsDistinctEndpointsWithinComparisonTolerance) {
+    const auto a = makePoint<3>({0, 0, 0});
+    for (double length : {1e-10, 1e-100, std::numeric_limits<double>::denorm_min()}) {
+        const auto b = makePoint<3>({length, 0, 0});
+        ASSERT_NE(a, b);
+        ASSERT_TRUE(a.isApprox(b));
+        for (const auto& endpoints : {std::array{a, b}, std::array{b, a}}) {
+            const geometry::segment_t segment(endpoints[0], endpoints[1]);
+            EXPECT_EQ(segment.a(), endpoints[0]);
+            EXPECT_EQ(segment.b(), endpoints[1]);
+            EXPECT_DOUBLE_EQ(segment.length(), length);
+            EXPECT_DOUBLE_EQ(segment.direction().normalized().length(), 1);
+        }
+    }
+}
+
+TEST(Segment, RejectsExactlyCoincidentEndpoints) {
+    for (const auto& point : {makePoint<3>({0, 0, 0}), makePoint<3>({1, -2, 3})}) {
+        EXPECT_THROW((geometry::segment_t(point, point)), std::invalid_argument);
+    }
+}
+
+TEST(Segment, IntersectsShortCoplanarSegments) {
+    const geometry::segment_t shortSegment(makePoint<3>({-1e-10, 0, 0}),
+                                           makePoint<3>({1e-10, 0, 0}));
+    const geometry::segment_t crossing(makePoint<3>({0, -1, 0}),
+                                       makePoint<3>({0, 1, 0}));
+    const geometry::segment_t separate(makePoint<3>({1, -1, 0}),
+                                       makePoint<3>({1, 1, 0}));
+    const geometry::vector_t normal(0, 0, 1);
+    EXPECT_TRUE(shortSegment.isIntersectsCoplanar(crossing, normal));
+    EXPECT_TRUE(crossing.isIntersectsCoplanar(shortSegment, normal));
+    EXPECT_FALSE(shortSegment.isIntersectsCoplanar(separate, normal));
+    EXPECT_FALSE(separate.isIntersectsCoplanar(shortSegment, normal));
+}
+
+TEST(Segment, IncludesCoplanarityToleranceBoundary) {
+    const geometry::segment_t first(makePoint<3>({-1, 0, 0}),
+                                    makePoint<3>({1, 0, 0}));
+    const geometry::segment_t atBoundary(makePoint<3>({0, -1, 1e-9}),
+                                         makePoint<3>({0, 1, 1e-9}));
+    const geometry::segment_t outside(makePoint<3>({0, -1, 2e-9}),
+                                      makePoint<3>({0, 1, 2e-9}));
+    const geometry::vector_t normal(0, 0, 1);
+    EXPECT_TRUE(first.isIntersectsCoplanar(atBoundary, normal));
+    EXPECT_TRUE(atBoundary.isIntersectsCoplanar(first, normal));
+    EXPECT_THROW(first.isIntersectsCoplanar(outside, normal), std::invalid_argument);
+}
+
 static_assert(!HasNormal<geometry::triangle_t<2>>);
 static_assert(HasNormal<geometry::triangle_t<3>>);
 static_assert(!HasNormal<geometry::polygon_t<2>>);

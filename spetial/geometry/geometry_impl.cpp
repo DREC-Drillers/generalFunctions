@@ -26,7 +26,7 @@ template double point_t<2>::orient2D(const point_t<2>& a,
 segment_t::segment_t(const point_t<3> &a, const point_t<3> &b)
     : a_(a),
       b_(b) {
-    if (a.isApprox(b)) {
+    if (a == b) {
         throw std::invalid_argument
             ("The line segment must be constructed using two distinct points.");
     }
@@ -62,9 +62,9 @@ bool
 segment_t::isIntersectsCoplanar(const segment_t& other, const vector_t& planeNormal) const {
     const vector_t unitNormal = planeNormal.normalized();
 
-    if (!isDoubleZero(vector_t{a_, b_}.dot(unitNormal)) ||
-        !isDoubleZero(vector_t{a_, other.a_}.dot(unitNormal)) ||
-        !isDoubleZero(vector_t{a_, other.b_}.dot(unitNormal))) {
+    if (std::abs(vector_t{a_, b_}.dot(unitNormal)) > EPSILON ||
+        std::abs(vector_t{a_, other.a_}.dot(unitNormal)) > EPSILON ||
+        std::abs(vector_t{a_, other.b_}.dot(unitNormal)) > EPSILON) {
         throw std::invalid_argument(
             "Segment endpoints must lie in a common plane with the supplied normal");
     }
