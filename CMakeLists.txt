@@ -90,7 +90,7 @@ if(GENERAL_FUNCTIONS_BUILD_TREE)
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions>")
     install(TARGETS general_functions_tree EXPORT GeneralFunctionsTreeTargets)
-    install(FILES tree/binary_tree.hpp
+    install(FILES tree/binary_tree.hpp tree/multiwayTree.hpp
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/tree)
     install(EXPORT GeneralFunctionsTreeTargets
         FILE GeneralFunctions-tree-targets.cmake
@@ -130,6 +130,9 @@ if(GENERAL_FUNCTIONS_BUILD_TESTS)
         add_executable(tree_smoke tests/tree_smoke.cpp)
         target_link_libraries(tree_smoke PRIVATE GeneralFunctions::tree)
         add_test(NAME tree_smoke COMMAND tree_smoke)
+        add_executable(multiway_tree_smoke tests/multiway_tree_smoke.cpp)
+        target_link_libraries(multiway_tree_smoke PRIVATE GeneralFunctions::tree)
+        add_test(NAME multiway_tree_smoke COMMAND multiway_tree_smoke)
     endif()
     find_package(GTest CONFIG REQUIRED)
     include(GoogleTest)

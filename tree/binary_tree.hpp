@@ -10,10 +10,6 @@
 
 namespace general_functions {
 
-// Node IDs remain valid after insertion. References to values may be
-// invalidated by insertion or reserve. IDs belong to this tree, not to other
-// instances. Nodes are stored in insertion order; the builder controls
-// traversal locality.
 template <typename T>
 class BinaryTree {
 public:
