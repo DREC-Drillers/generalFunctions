@@ -32,38 +32,39 @@ public:
     BTree& operator=(BTree&&) = delete;
 
     SizeType size() const noexcept {
-        const auto root = tree_.root();
+        const auto rootId = tree_.root();
 
-        return root ? tree_.value(*root).subtreeSize : 0;
+        return rootId ? tree_.value(*rootId).subtreeSize : 0;
     }
 
     bool empty() const noexcept { return tree_.empty(); }
 
     bool contains(const Key& key) const {
-        auto currentNode = tree_.root();
+        auto currentNodeId = tree_.root();
 
-        while (currentNode) {
-            const auto& keys = tree_.value(*currentNode).keys;
-            const auto position = findLowerBoundIndex(*currentNode, key);
+        while (currentNodeId) {
+            const auto& keys = tree_.value(*currentNodeId).keys;
+            const auto lowerBoundIndex = findLowerBoundIndex(*currentNodeId, key);
 
-            if (position < keys.size() && !compare_(key, keys[position])) {
+            if (lowerBoundIndex < keys.size() &&
+                !compare_(key, keys[lowerBoundIndex])) {
                 return true;
             }
 
-            if (isLeaf(*currentNode)) {
+            if (isLeaf(*currentNodeId)) {
                 return false;
             }
 
-            currentNode = tree_.child(*currentNode, position);
+            currentNodeId = tree_.child(*currentNodeId, lowerBoundIndex);
         }
 
         return false;
     }
 
     void insert(const Key& key) {
-        const auto root = tree_.root();
+        const auto rootId = tree_.root();
 
-        if (!root) {
+        if (!rootId) {
             createRoot(key);
             return;
         }
@@ -72,7 +73,7 @@ public:
             throw std::length_error("BTree: too many keys");
         }
 
-        if (isFull(*root)) {
+        if (isFull(*rootId)) {
             splitRoot();
         }
 
@@ -80,16 +81,17 @@ public:
     }
 
     bool validateInvariants() const {
-        const auto root = tree_.root();
+        const auto rootId = tree_.root();
 
-        if (!root) {
+        if (!rootId) {
             return tree_.empty();
         }
 
         ValidationState state;
         state.visited.resize(tree_.size(), false);
 
-        if (!validateNode(*root, nullptr, nullptr, 0, state)) {
+        if (!validateNode(*rootId, nullptr, nullptr, 0, state) ||
+            tree_.parent(*rootId)) {
             return false;
         }
 
@@ -99,7 +101,10 @@ public:
     }
 
 private:
+    static constexpr SizeType MIN_KEYS = minDegree - 1;
     static constexpr SizeType MAX_KEYS = 2 * minDegree - 1;
+    static constexpr SizeType MEDIAN_KEY_INDEX = MIN_KEYS;
+    static constexpr SizeType ROOT_RIGHT_CHILD_INDEX = 1;
 
     struct NodeData {
         std::vector<Key> keys;
@@ -109,45 +114,45 @@ private:
     using Tree = MultiwayTree<NodeData>;
     using NodeId = typename Tree::NodeId;
 
-    bool isLeaf(NodeId node) const { return tree_.childCount(node) == 0; }
+    bool isLeaf(NodeId nodeId) const { return tree_.childCount(nodeId) == 0; }
 
-    bool isFull(NodeId node) const {
-        return tree_.value(node).keys.size() == MAX_KEYS;
+    bool isFull(NodeId nodeId) const {
+        return tree_.value(nodeId).keys.size() == MAX_KEYS;
     }
 
-    SizeType findLowerBoundIndex(NodeId node, const Key& key) const {
-        const auto& keys = tree_.value(node).keys;
-        const auto position =
+    SizeType findLowerBoundIndex(NodeId nodeId, const Key& key) const {
+        const auto& keys = tree_.value(nodeId).keys;
+        const auto boundIt =
             std::lower_bound(keys.begin(), keys.end(), key, std::cref(compare_));
 
-        return static_cast<SizeType>(position - keys.begin());
+        return static_cast<SizeType>(boundIt - keys.begin());
     }
 
-    SizeType findUpperBoundIndex(NodeId node, const Key& key) const {
-        const auto& keys = tree_.value(node).keys;
-        const auto position =
+    SizeType findUpperBoundIndex(NodeId nodeId, const Key& key) const {
+        const auto& keys = tree_.value(nodeId).keys;
+        const auto boundIt =
             std::upper_bound(keys.begin(), keys.end(), key, std::cref(compare_));
 
-        return static_cast<SizeType>(position - keys.begin());
+        return static_cast<SizeType>(boundIt - keys.begin());
     }
 
     void createRoot(const Key& key) {
-        NodeData root;
-        root.keys.push_back(key);
-        root.subtreeSize = 1;
+        NodeData rootData;
+        rootData.keys.push_back(key);
+        rootData.subtreeSize = 1;
 
-        tree_.addRoot(std::move(root));
+        tree_.addRoot(std::move(rootData));
     }
 
-    void insertIntoLeaf(NodeId leaf, const Key& key) {
-        auto& node = tree_.value(leaf);
-        const auto position = findUpperBoundIndex(leaf, key);
+    void insertIntoLeaf(NodeId leafId, const Key& key) {
+        auto& leafData = tree_.value(leafId);
+        const auto insertionIndex = findUpperBoundIndex(leafId, key);
 
-        auto updatedKeys = node.keys;
-        updatedKeys.insert(updatedKeys.begin() + position, key);
+        auto updatedKeys = leafData.keys;
+        updatedKeys.insert(updatedKeys.begin() + insertionIndex, key);
 
-        node.keys.swap(updatedKeys);
-        node.subtreeSize = node.keys.size();
+        leafData.keys.swap(updatedKeys);
+        leafData.subtreeSize = leafData.keys.size();
     }
 
     struct SplitData {
@@ -161,22 +166,24 @@ private:
         std::optional<SizeType> leafDepth;
     };
 
-    SplitData prepareSplit(NodeId node) const {
-        const auto& keys = tree_.value(node).keys;
-        SplitData split{NodeData{}, NodeData{}, keys[minDegree - 1]};
-        split.left.keys.assign(keys.begin(), keys.begin() + minDegree - 1);
-        split.right.keys.assign(keys.begin() + minDegree, keys.end());
+    SplitData prepareSplit(NodeId nodeId) const {
+        const auto& keys = tree_.value(nodeId).keys;
+        SplitData split{NodeData{}, NodeData{}, keys[MEDIAN_KEY_INDEX]};
+        split.left.keys.assign(keys.begin(), keys.begin() + MEDIAN_KEY_INDEX);
+        split.right.keys.assign(keys.begin() + MEDIAN_KEY_INDEX + 1, keys.end());
 
         split.left.subtreeSize = split.left.keys.size();
         split.right.subtreeSize = split.right.keys.size();
 
-        for (SizeType index = 0; index < tree_.childCount(node); ++index) {
-            const auto childSize = tree_.value(tree_.child(node, index)).subtreeSize;
+        for (SizeType childIndex = 0; childIndex < tree_.childCount(nodeId);
+             ++childIndex) {
+            const auto childSubtreeSize =
+                tree_.value(tree_.child(nodeId, childIndex)).subtreeSize;
 
-            if (index < minDegree) {
-                split.left.subtreeSize += childSize;
+            if (childIndex < minDegree) {
+                split.left.subtreeSize += childSubtreeSize;
             } else {
-                split.right.subtreeSize += childSize;
+                split.right.subtreeSize += childSubtreeSize;
             }
         }
 
@@ -184,78 +191,84 @@ private:
     }
 
     void splitRoot() {
-        const NodeId oldRoot = *tree_.root();
-        auto split = prepareSplit(oldRoot);
+        const NodeId oldRootId = *tree_.root();
+        auto split = prepareSplit(oldRootId);
 
-        NodeData newRoot;
-        newRoot.keys.push_back(split.median);
-        newRoot.subtreeSize = tree_.value(oldRoot).subtreeSize;
-        const SizeType firstMovedChild = isLeaf(oldRoot) ? 0 : minDegree;
+        NodeData newRootData;
+        newRootData.keys.push_back(split.median);
+        newRootData.subtreeSize = tree_.value(oldRootId).subtreeSize;
+        const SizeType firstRightChildIndex = isLeaf(oldRootId) ? 0 : minDegree;
 
         auto editor = tree_.editTopology();
-        const NodeId newRootId = editor.insertParent(oldRoot, std::move(newRoot));
-        const NodeId sibling = editor.addChild(newRootId, 1, std::move(split.right));
-        const SizeType movedCount = tree_.childCount(oldRoot) - firstMovedChild;
-        editor.moveChildren(oldRoot, firstMovedChild, movedCount, sibling, 0);
+        const NodeId newRootId =
+            editor.insertParent(oldRootId, std::move(newRootData));
+        const NodeId siblingId = editor.addChild(
+            newRootId, ROOT_RIGHT_CHILD_INDEX, std::move(split.right));
+        const SizeType rightChildCount =
+            tree_.childCount(oldRootId) - firstRightChildIndex;
+        editor.moveChildren(
+            oldRootId, firstRightChildIndex, rightChildCount, siblingId, 0);
         editor.commitChanges();
 
-        tree_.value(oldRoot).keys.swap(split.left.keys);
-        tree_.value(oldRoot).subtreeSize = split.left.subtreeSize;
+        tree_.value(oldRootId).keys.swap(split.left.keys);
+        tree_.value(oldRootId).subtreeSize = split.left.subtreeSize;
     }
 
-    void splitChild(NodeId parent, SizeType childIndex) {
-        const NodeId child = tree_.child(parent, childIndex);
-        auto split = prepareSplit(child);
+    void splitChild(NodeId parentId, SizeType childIndex) {
+        const NodeId childId = tree_.child(parentId, childIndex);
+        auto split = prepareSplit(childId);
 
-        auto parentKeys = tree_.value(parent).keys;
+        auto parentKeys = tree_.value(parentId).keys;
         parentKeys.insert(parentKeys.begin() + childIndex, split.median);
-        const SizeType firstMovedChild = isLeaf(child) ? 0 : minDegree;
+        const SizeType firstRightChildIndex = isLeaf(childId) ? 0 : minDegree;
 
         auto editor = tree_.editTopology();
-        const NodeId sibling =
-            editor.addChild(parent, childIndex + 1, std::move(split.right));
-        const SizeType movedCount = tree_.childCount(child) - firstMovedChild;
-        editor.moveChildren(child, firstMovedChild, movedCount, sibling, 0);
+        const NodeId siblingId =
+            editor.addChild(parentId, childIndex + 1, std::move(split.right));
+        const SizeType rightChildCount =
+            tree_.childCount(childId) - firstRightChildIndex;
+        editor.moveChildren(
+            childId, firstRightChildIndex, rightChildCount, siblingId, 0);
         editor.commitChanges();
 
-        tree_.value(child).keys.swap(split.left.keys);
-        tree_.value(child).subtreeSize = split.left.subtreeSize;
-        tree_.value(parent).keys.swap(parentKeys);
+        tree_.value(childId).keys.swap(split.left.keys);
+        tree_.value(childId).subtreeSize = split.left.subtreeSize;
+        tree_.value(parentId).keys.swap(parentKeys);
     }
 
-    void insertNonFull(NodeId node, const Key& key) {
-        if (isLeaf(node)) {
-            insertIntoLeaf(node, key);
+    void insertNonFull(NodeId nodeId, const Key& key) {
+        if (isLeaf(nodeId)) {
+            insertIntoLeaf(nodeId, key);
             return;
         }
 
-        auto childIndex = findUpperBoundIndex(node, key);
+        auto childIndex = findUpperBoundIndex(nodeId, key);
 
-        if (isFull(tree_.child(node, childIndex))) {
-            splitChild(node, childIndex);
+        if (isFull(tree_.child(nodeId, childIndex))) {
+            splitChild(nodeId, childIndex);
 
-            if (!compare_(key, tree_.value(node).keys[childIndex])) {
+            if (!compare_(key, tree_.value(nodeId).keys[childIndex])) {
                 ++childIndex;
             }
         }
 
-        insertNonFull(tree_.child(node, childIndex), key);
-        ++tree_.value(node).subtreeSize;
+        insertNonFull(tree_.child(nodeId, childIndex), key);
+        ++tree_.value(nodeId).subtreeSize;
     }
 
-    std::optional<SizeType> validateNode(NodeId node, const Key* lower,
+    std::optional<SizeType> validateNode(NodeId nodeId, const Key* lower,
                                          const Key* upper, SizeType depth,
                                          ValidationState& state) const {
-        if (node >= state.visited.size() || state.visited[node]) {
+        if (nodeId >= state.visited.size() || state.visited[nodeId]) {
             return std::nullopt;
         }
 
-        state.visited[node] = true;
-        const auto& data = tree_.value(node);
+        state.visited[nodeId] = true;
+        const auto& data = tree_.value(nodeId);
         const auto& keys = data.keys;
 
         if (keys.empty() || keys.size() > MAX_KEYS ||
-            (node != *tree_.root() && keys.size() < minDegree - 1)) {
+            (nodeId != *tree_.root() && keys.size() < MIN_KEYS)) {
             return std::nullopt;
         }
 
@@ -271,27 +284,25 @@ private:
         }
 
         SizeType countedKeys = keys.size();
-        if (isLeaf(node)) {
+        if (isLeaf(nodeId)) {
             if (state.leafDepth && *state.leafDepth != depth) {
                 return std::nullopt;
             }
 
             state.leafDepth = depth;
         } else {
-            if (tree_.childCount(node) != keys.size() + 1) {
+            if (tree_.childCount(nodeId) != keys.size() + 1) {
                 return std::nullopt;
             }
 
             for (SizeType index = 0; index <= keys.size(); ++index) {
                 const Key* childLower = index == 0 ? lower : &keys[index - 1];
                 const Key* childUpper = index == keys.size() ? upper : &keys[index];
-                const auto childSize = validateNode(tree_.child(node, index),
-                                                    childLower,
-                                                    childUpper,
-                                                    depth + 1,
-                                                    state);
+                const NodeId childId = tree_.child(nodeId, index);
+                const auto childSize =
+                    validateNode(childId, childLower, childUpper, depth + 1, state);
 
-                if (!childSize) {
+                if (!childSize || tree_.parent(childId) != nodeId) {
                     return std::nullopt;
                 }
 
