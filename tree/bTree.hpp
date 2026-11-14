@@ -61,6 +61,48 @@ public:
         return false;
     }
 
+    SizeType countKeysLessThan(const Key& key) const {
+        return countKeysBeforeBound(key, false);
+    }
+
+    SizeType countKeysLessThanOrEqual(const Key& key) const {
+        return countKeysBeforeBound(key, true);
+    }
+
+    const Key& getKeyBySortedIndex(SizeType zeroBasedIndex) const {
+        if (zeroBasedIndex >= size()) {
+            throw std::out_of_range("BTree: sorted index out of range");
+        }
+
+        NodeId nodeId = *tree_.root();
+
+        while (!isLeaf(nodeId)) {
+            const auto& keys = tree_.value(nodeId).keys;
+            SizeType childIndex = 0;
+
+            for (; childIndex < keys.size(); ++childIndex) {
+                const auto childSize =
+                    tree_.value(tree_.child(nodeId, childIndex)).subtreeSize;
+
+                if (zeroBasedIndex < childSize) {
+                    break;
+                }
+
+                zeroBasedIndex -= childSize;
+
+                if (zeroBasedIndex == 0) {
+                    return keys[childIndex];
+                }
+
+                --zeroBasedIndex;
+            }
+
+            nodeId = tree_.child(nodeId, childIndex);
+        }
+
+        return tree_.value(nodeId).keys[zeroBasedIndex];
+    }
+
     void insert(const Key& key) {
         const auto rootId = tree_.root();
 
@@ -134,6 +176,31 @@ private:
             std::upper_bound(keys.begin(), keys.end(), key, std::cref(compare_));
 
         return static_cast<SizeType>(boundIt - keys.begin());
+    }
+
+    SizeType countKeysBeforeBound(const Key& key, bool includeEquivalent) const {
+        SizeType count = 0;
+        auto currentNodeId = tree_.root();
+
+        while (currentNodeId) {
+            const auto keyIndex = includeEquivalent
+                                      ? findUpperBoundIndex(*currentNodeId, key)
+                                      : findLowerBoundIndex(*currentNodeId, key);
+            count += keyIndex;
+
+            if (isLeaf(*currentNodeId)) {
+                return count;
+            }
+
+            for (SizeType childIndex = 0; childIndex < keyIndex; ++childIndex) {
+                count +=
+                    tree_.value(tree_.child(*currentNodeId, childIndex)).subtreeSize;
+            }
+
+            currentNodeId = tree_.child(*currentNodeId, keyIndex);
+        }
+
+        return count;
     }
 
     void createRoot(const Key& key) {
