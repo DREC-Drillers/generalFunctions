@@ -19,6 +19,7 @@ public:
     iterator sibling() const;
 
     bool isLeaf() { return left() == nullptr && right == nullptr };
+    bool hasRedChilds();
 
     keyT key() { return key; };
     void setKey(keyT key) { key_ = key; };
@@ -56,6 +57,12 @@ iterator
 node_t::sibling() {
     iterator parent = node.parent();
     return node == parent.left() ? parent.right() : parent.left();
+}
+
+bool
+node_t::hasRedChilds() {
+    return (left() && left().color() == nodeColor_t::RED) ||
+           (right() && right().color() == nodeColor_t::RED);
 }
 
 void
@@ -192,18 +199,6 @@ redBlackTree_t<keyT>::insert(keyT key, iterator node, iterator parent) {
 }
 
 void
-redBlackTree_t<keyT>::replaceNodeByChild(iterator node, iterator child) {
-    iterator parent = node.parent();
-    child.setParent(parent)
-
-    if (node == parent->left()) {
-        parent->left() = child;
-    } else {
-        parent->right() = child;
-    }
-}
-
-void
 redBlackTree_t<keyT>::delete(keyT key, iterator node = root_) {
     if (!node) {
         return;
@@ -215,30 +210,103 @@ redBlackTree_t<keyT>::delete(keyT key, iterator node = root_) {
     if (key < node->key()) {
         return delete(key, node->left());
     }
+
+    if (node->left() && node->right()) {
+        return deleteNodeWithTwoChilds(node);
+    }
+
+    deleteNodeWithLessThanTwoChilds(node);
 }
 
 void
-redBlackTree_t<keyT>::deleteNodeWithOneChild(iterator node) {
-    iterator child = isLeaf(node.right()) ? node.left() : node.right();
+redBlackTree_t<keyT>::deleteNodeWithLessThanTwoChilds(iterator node) {
+    iterator child = node.right().isLeaf() ? node.left() : node.right();
 
-    replaceNode(node, child);
+    replaceNodeByChild(node, child);
 	if (node->color() == nodeColor_t::BLACK) {
-		if (child->color() == nodeColor_t::RED)
-			child->setColor(nodeColor_t::BLACK);
+        if (child)
+            child->setColor(nodeColor_t::BLACK);
 		else
-			deleteCase1(child);
+            chooseDeleteCases(node);
 	}
 	delete(node);
 }
 
+iterator
+redBlackTree_t<keyT>::findMaxKeyNode(iterator node) {
+    if (!node->right()) {
+        return node;
+    }
+    return findMaxKeyNode(node->right());
+}
+
+void
+redBlackTree_t<keyT>::deleteNodeWithTwoChilds(iterator node) {
+    iterator maxKeyNode = findMaxKeyNode(node->right);
+    node->setKey(maxKeyNode->key());
+    deleteNodeWithLessThanTwoChilds(maxKeyNode);
+}
+
+void
+redBlackTree_t<keyT>::replaceNodeByChild(iterator node, iterator child) {
+    iterator parent = node.parent();
+    if (child) {
+        child.setParent(parent);
+    }
+
+    if (node == parent->left()) {
+        parent->left() = child;
+    } else {
+        parent->right() = child;
+    }
+}
+
+void
+redBlackTree_t<keyT>chooseDeleteCases(iterator node) {
+    iterator parent = node->parent();
+    iterator sibling = node->sibling();
+    if(!parent) {
+        return;
+    }
+
+    if (parent->color == nodeColor_t::RED) {
+        return sibling.hasRedChilds() ? deleteCase1() : deleteCAse2();
+    }
+
+    if (sibling->color() = nodeColor_t::RED) {
+        return
+    }
+
+    return sibling.hasRedChilds() ? deleteCase5() : deleteCAse6();
+}
+
 void
 redBlackTree_t<keyT>::deleteCase1(iterator node) {
-	if (node.parent())
-		deleteCase2(n);
+
 }
 
 void
 redBlackTree_t<keyT>::deleteCase2(iterator node) {
+
+}
+
+void
+redBlackTree_t<keyT>::deleteCase3(iterator node) {
+
+}
+
+void
+redBlackTree_t<keyT>::deleteCase4(iterator node) {
+
+}
+
+void
+redBlackTree_t<keyT>::deleteCase5(iterator node) {
+
+}
+
+void
+redBlackTree_t<keyT>::deleteCase6(iterator node) {
 
 }
 
