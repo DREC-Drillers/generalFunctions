@@ -92,8 +92,6 @@ if(GENERAL_FUNCTIONS_BUILD_TREE)
     install(TARGETS general_functions_tree EXPORT GeneralFunctionsTreeTargets)
     install(FILES tree/binary_tree.hpp tree/multiwayTree.hpp tree/bTree.hpp tree/avlTree.hpp
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/tree)
-    install(FILES dump/treeDump.hpp
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/dump)
     install(EXPORT GeneralFunctionsTreeTargets
         FILE GeneralFunctions-tree-targets.cmake
         NAMESPACE GeneralFunctions::
