@@ -193,34 +193,55 @@ redBlackTree_t<keyT>::insertCase5(iterator node) {
 }
 
 template <typename keyT, typename Comp>
-typename redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::find(keyT key, iterator node) {
-    if (!node) {
+redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::findInSubtree(keyT key, iterator subTreeRoot) {
+    if (!subTreeRoot) {
         return nullptr;
     }
-    if (comp_(key, node->key())) {
-        return find(key, node->left());
+    if (comp_(key, subTreeRoot->key())) {
+        return findInSubtree(key, subTreeRoot->left());
     }
     if (comp_(node->key(), key)) {
-        return find(key, node->right());
+        return findInSubtree(key, subTreeRoot->right());
     }
-    return node;
+    return subTreeRoot;
+}
+
+template <typename keyT, typename Comp>
+redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::find(keyT key) {
+    return findInSubtree(key, root_);
 }
 
 template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT, Comp>::insert(keyT key, iterator node, iterator parent) {
-    if (!node) {
-        iterator newNode = new iterator(key, parent);
+redBlackTree_t<keyT, Comp>::insertInSubtree(keyT key, iterator subtreeRoot, iterator parent) {
+    if (!subtreeRoot) {
+        const bool insertLeft = parent && comp_(key, parent->key());
+        iterator newNode = new node_t(key, parent);
+        if (!parent) {
+            root_ = newNode;
+        } else if (insertLeft) {
+            parent->setLeft(newNode);
+        } else {
+            parent->setRight(newNode);
+        }
         insertCase1(newNode);
+        return;
     }
 
-    if (comp_(key, node->key())) {
-        return insert(key, node->left(), node);
+    if (comp_(key, subtreeRoot->key())) {
+        return insertInSubtree(key, subtreeRoot->left(), subtreeRoot);
     }
-    if (comp_(node->key(), key)) {
-        return insert(key, node->right(), node);
+    if (comp_(subtreeRoot->key(), key)) {
+        return insertInSubtree(key, subtreeRoot->right(), subtreeRoot);
     }
+}
+
+template <typename keyT, typename Comp>
+void
+redBlackTree_t<keyT, Comp>::insert(keyT key) {
+    return insertInSubtree(key, root_, nullptr);
 }
 
 void

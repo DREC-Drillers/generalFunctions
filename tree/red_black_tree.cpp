@@ -12,6 +12,7 @@ private:
     iterator root_ = nullptr;
     node_t = nil_;
     iterator nil() { return &nil; }
+    void insertInSubtree(keyT key, iterator subtreeRoot, iterator parent);
 
 public:
     explicit redBlackTree_t(Comp comp = Comp{}) : comp_(std::move(comp)) {}
@@ -21,9 +22,9 @@ public:
     iterator distance(iterator fst, iterator snd) const;
 
 public:
-    void insert(keyT key, iterator node = root_, iterator parent = nullptr);
+    void insert(keyT key);
     void delete(keyT key);
-    iterator find(keyT key, iterator node = root_);
+    iterator find(keyT key);
 }
 
 } // namespace red_black_tree
