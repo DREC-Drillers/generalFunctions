@@ -90,7 +90,7 @@ if(GENERAL_FUNCTIONS_BUILD_TREE)
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions>")
     install(TARGETS general_functions_tree EXPORT GeneralFunctionsTreeTargets)
-    install(FILES tree/binary_tree.hpp tree/multiwayTree.hpp tree/bTree.hpp
+    install(FILES tree/binary_tree.hpp tree/multiwayTree.hpp tree/bTree.hpp tree/avlTree.hpp
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/tree)
     install(EXPORT GeneralFunctionsTreeTargets
         FILE GeneralFunctions-tree-targets.cmake
@@ -137,6 +137,12 @@ if(GENERAL_FUNCTIONS_BUILD_TESTS)
     find_package(GTest CONFIG REQUIRED)
     include(GoogleTest)
     if(GENERAL_FUNCTIONS_BUILD_TREE)
+        add_executable(search_tree_api_tests tests/search_tree_api_test.cpp)
+        target_link_libraries(search_tree_api_tests PRIVATE GeneralFunctions::tree GTest::gtest_main)
+        gtest_discover_tests(search_tree_api_tests DISCOVERY_MODE PRE_TEST)
+        add_executable(avl_tree_tests tests/avl_tree_test.cpp)
+        target_link_libraries(avl_tree_tests PRIVATE GeneralFunctions::tree GTest::gtest_main)
+        gtest_discover_tests(avl_tree_tests DISCOVERY_MODE PRE_TEST)
         add_executable(btree_tests tests/btree_test.cpp)
         target_link_libraries(btree_tests PRIVATE GeneralFunctions::tree GTest::gtest_main)
         gtest_discover_tests(btree_tests DISCOVERY_MODE PRE_TEST)

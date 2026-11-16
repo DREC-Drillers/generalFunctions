@@ -17,7 +17,7 @@ public:
 
     BinaryTree() = default;
     BinaryTree(const BinaryTree&) = default;
-    BinaryTree(BinaryTree&&) noexcept = default;
+    BinaryTree(BinaryTree&& other) noexcept { swap(other); }
 
     // Strong exception guarantee: failed copying leaves this tree unchanged.
     BinaryTree& operator=(const BinaryTree& other) {
@@ -28,9 +28,18 @@ public:
         return *this;
     }
 
-    BinaryTree& operator=(BinaryTree&&) noexcept = default;
+    BinaryTree& operator=(BinaryTree&& other) noexcept {
+        if (this != &other) {
+            BinaryTree moved(std::move(other));
+            swap(moved);
+        }
+        return *this;
+    }
 
-    void swap(BinaryTree& other) noexcept { nodes_.swap(other.nodes_); }
+    void swap(BinaryTree& other) noexcept {
+        nodes_.swap(other.nodes_);
+        std::swap(rootId_, other.rootId_);
+    }
 
     friend void swap(BinaryTree& left, BinaryTree& right) noexcept {
         left.swap(right);
@@ -46,15 +55,14 @@ public:
         nodes_.reserve(count);
     }
 
-    std::optional<NodeId> root() const noexcept {
-        return empty() ? std::nullopt : std::optional<NodeId>{0};
-    }
+    std::optional<NodeId> root() const noexcept { return childId(rootId_); }
 
     NodeId addRoot(T value) {
         if (!empty()) {
             throw std::logic_error("BinaryTree: root already exists");
         }
-        return append(std::move(value));
+        rootId_ = append(std::move(value));
+        return rootId_;
     }
 
     NodeId addLeft(NodeId parent, T value) {
@@ -83,6 +91,27 @@ public:
         return childId(nodes_.at(node).right);
     }
 
+    void setRoot(NodeId node) {
+        checkNodeId(node);
+        rootId_ = node;
+    }
+
+    void setLeft(NodeId node, std::optional<NodeId> child) {
+        checkNodeId(node);
+        if (child.has_value()) {
+            checkNodeId(child.value());
+        }
+        nodes_[node].left = child.value_or(INVALID_NODE);
+    }
+
+    void setRight(NodeId node, std::optional<NodeId> child) {
+        checkNodeId(node);
+        if (child.has_value()) {
+            checkNodeId(child.value());
+        }
+        nodes_[node].right = child.value_or(INVALID_NODE);
+    }
+
     T& value(NodeId node) { return nodes_.at(node).value; }
     const T& value(NodeId node) const { return nodes_.at(node).value; }
 
@@ -96,6 +125,12 @@ private:
         NodeId left = INVALID_NODE;
         NodeId right = INVALID_NODE;
     };
+
+    void checkNodeId(NodeId node) const {
+        if (node >= nodes_.size()) {
+            throw std::out_of_range("BinaryTree: node ID out of range");
+        }
+    }
 
     static std::optional<NodeId> childId(NodeId child) noexcept {
         return child == INVALID_NODE ? std::nullopt : std::optional<NodeId>{child};
@@ -111,6 +146,7 @@ private:
     }
 
     std::vector<Node> nodes_;
+    NodeId rootId_ = INVALID_NODE;
 };
 
 } // namespace general_functions
