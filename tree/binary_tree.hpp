@@ -91,7 +91,6 @@ public:
         return childId(nodes_.at(node).right);
     }
 
-    // Low-level topology operations. The caller must preserve a valid tree.
     void setRoot(NodeId node) {
         checkNodeId(node);
         rootId_ = node;
@@ -99,16 +98,16 @@ public:
 
     void setLeft(NodeId node, std::optional<NodeId> child) {
         checkNodeId(node);
-        if (child) {
-            checkNodeId(*child);
+        if (child.has_value()) {
+            checkNodeId(child.value());
         }
         nodes_[node].left = child.value_or(INVALID_NODE);
     }
 
     void setRight(NodeId node, std::optional<NodeId> child) {
         checkNodeId(node);
-        if (child) {
-            checkNodeId(*child);
+        if (child.has_value()) {
+            checkNodeId(child.value());
         }
         nodes_[node].right = child.value_or(INVALID_NODE);
     }
