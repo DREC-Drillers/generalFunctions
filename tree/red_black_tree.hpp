@@ -1,7 +1,67 @@
-#include <limits>
+#pragma once
+#include <memory>
 #include <optional>
+#include <utility>
+#include <limits>
 #include <stdexcept>
 #include <tuple>
+
+namespace red_black_tree {
+
+template <typename keyT, typename Comp>
+class redBlackTree_t {
+private:
+    Comp comp_;
+    enum class nodeColor_t {RED, BLACK};
+    enum class ChildSide {LEFT, RIGHT};
+    class node_t;
+    using iterator = node_t*;
+
+    std::unique_ptr<node_t> nil_;
+    iterator root_;
+    iterator nil() const { return nil_.get(); }
+
+    void destroySubtree(iterator node);
+    iterator findInSubtree(const keyT& key, iterator subTreeRoot) const;
+    iterator successor(iterator node) const;
+    void insertInSubtree(keyT&& key, iterator subtreeRoot, iterator parent, ChildSide side);
+    void rotateLeft(iterator node);
+    void rotateRight(iterator node);
+    void insertCase1(iterator node);
+    void insertCase2(iterator node);
+    void insertCase3(iterator node);
+    void insertCase4(iterator node);
+    void insertCase5(iterator node);
+    iterator treeMaxKeyNode(iterator node);
+    iterator treeMinKeyNode(iterator node);
+    void transplant(iterator replaceableNode, iterator newNode);
+    std::pair<iterator, nodeColor_t> removeNodeWithTwoChildren(iterator rmNode);
+    void deleteFixup(iterator extraBlackNode);
+    void rotateParent(iterator node);
+    void rotateSibling(iterator node);
+    void deleteNode(iterator rmNode);
+
+public:
+    explicit redBlackTree_t(Comp comp = Comp{});
+    ~redBlackTree_t();
+
+    redBlackTree_t(const redBlackTree_t&) = delete;
+    redBlackTree_t& operator=(const redBlackTree_t&) = delete;
+    redBlackTree_t(redBlackTree_t&&) = delete;
+    redBlackTree_t& operator=(redBlackTree_t&&) = delete;
+
+public:
+    std::optional<keyT> lowerBound(const keyT& key) const;
+    std::optional<keyT> upperBound(const keyT& key) const;
+
+public:
+    void insert(keyT key);
+    void erase(const keyT& key);
+    bool find(const keyT& key) const;
+};
+
+} // namespace red_black_tree
+
 
 namespace red_black_tree {
 
@@ -62,13 +122,13 @@ redBlackTree_t<keyT, Comp>::destroySubtree(iterator node) {
 }
 
 template <typename keyT, typename Comp>
-redBlackTree_t<keyT, Comp>::iterator
+typename redBlackTree_t<keyT, Comp>::iterator
 redBlackTree_t<keyT, Comp>::node_t::grandparent() const {
     return parent_->isNil() ? parent_ : parent_->parent();
 }
 
 template <typename keyT, typename Comp>
-redBlackTree_t<keyT, Comp>::iterator
+typename redBlackTree_t<keyT, Comp>::iterator
 redBlackTree_t<keyT, Comp>::node_t::uncle() const {
     iterator grandparent = this->grandparent();
     if (grandparent->isNil()) {
@@ -79,7 +139,7 @@ redBlackTree_t<keyT, Comp>::node_t::uncle() const {
 }
 
 template <typename keyT, typename Comp>
-redBlackTree_t<keyT, Comp>::iterator
+typename redBlackTree_t<keyT, Comp>::iterator
 redBlackTree_t<keyT, Comp>::node_t::sibling() const {
     if (parent_->isNil()) {
         return parent_;
@@ -89,14 +149,14 @@ redBlackTree_t<keyT, Comp>::node_t::sibling() const {
 }
 
 template <typename keyT, typename Comp>
-redBlackTree_t<keyT, Comp>::iterator
+typename redBlackTree_t<keyT, Comp>::iterator
 redBlackTree_t<keyT, Comp>::node_t::nearNephew() const {
     iterator sibling = this->sibling();
     return this == parent_->left() ? sibling->left() : sibling->right();
 }
 
 template <typename keyT, typename Comp>
-redBlackTree_t<keyT, Comp>::iterator
+typename redBlackTree_t<keyT, Comp>::iterator
 redBlackTree_t<keyT, Comp>::node_t::farNephew() const {
     iterator sibling = this->sibling();
     return this == parent_->left() ? sibling->right() : sibling->left();
@@ -223,8 +283,8 @@ redBlackTree_t<keyT, Comp>::insertCase5(iterator node) {
 }
 
 template <typename keyT, typename Comp>
-redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::findInSubtree(const keyT& key, iterator subTreeRoot) {
+typename redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::findInSubtree(const keyT& key, iterator subTreeRoot) const {
     if (subTreeRoot == nil()) {
         return nil();
     }
@@ -239,7 +299,7 @@ redBlackTree_t<keyT, Comp>::findInSubtree(const keyT& key, iterator subTreeRoot)
 
 template <typename keyT, typename Comp>
 bool
-redBlackTree_t<keyT, Comp>::find(const keyT& key) {
+redBlackTree_t<keyT, Comp>::find(const keyT& key) const {
     return findInSubtree(key, root_) != nil();
 }
 
@@ -282,7 +342,7 @@ redBlackTree_t<keyT, Comp>::upperBound(const keyT& key) const {
 }
 
 template <typename keyT, typename Comp>
-redBlackTree_t<keyT, Comp>::iterator
+typename redBlackTree_t<keyT, Comp>::iterator
 redBlackTree_t<keyT, Comp>::successor(iterator node) const {
     if (node == nil()) {
         return nil();
@@ -300,34 +360,6 @@ redBlackTree_t<keyT, Comp>::successor(iterator node) const {
         parent = parent->parent();
     }
     return parent;
-}
-
-template <typename keyT, typename Comp>
-int
-redBlackTree_t<keyT, Comp>::distance(iterator fst, iterator snd) const {
-    if (!fst || !snd) {
-        throw std::invalid_argument("redBlackTree: use nil instead of nullptr");
-    }
-    if (fst == snd) {
-        return 0;
-    }
-    const bool reverse = fst == nil() ||
-        (snd != nil() && comp_(snd->key(), fst->key()));
-    if (reverse) {
-        std::swap(fst, snd);
-    }
-    int count = 0;
-    while (fst != snd && fst != nil()) {
-        if (count == std::numeric_limits<int>::max()) {
-            throw std::overflow_error("redBlackTree: distance does not fit in int");
-        }
-        fst = successor(fst);
-        ++count;
-    }
-    if (fst != snd) {
-        throw std::invalid_argument("redBlackTree: positions are not in the same range");
-    }
-    return reverse ? -count : count;
 }
 
 template <typename keyT, typename Comp>
@@ -369,7 +401,7 @@ redBlackTree_t<keyT, Comp>::erase(const keyT& key) {
 }
 
 template <typename keyT, typename Comp>
-redBlackTree_t<keyT, Comp>::iterator
+typename redBlackTree_t<keyT, Comp>::iterator
 redBlackTree_t<keyT, Comp>::treeMaxKeyNode(iterator node) {
     if (node == nil() || node->right() == nil()) {
         return node;
@@ -378,7 +410,7 @@ redBlackTree_t<keyT, Comp>::treeMaxKeyNode(iterator node) {
 }
 
 template <typename keyT, typename Comp>
-redBlackTree_t<keyT, Comp>::iterator
+typename redBlackTree_t<keyT, Comp>::iterator
 redBlackTree_t<keyT, Comp>::treeMinKeyNode(iterator node) {
     if (node == nil() || node->left() == nil()) {
         return node;

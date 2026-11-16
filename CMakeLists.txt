@@ -91,6 +91,7 @@ if(GENERAL_FUNCTIONS_BUILD_TREE)
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions>")
     install(TARGETS general_functions_tree EXPORT GeneralFunctionsTreeTargets)
     install(FILES tree/binary_tree.hpp tree/multiwayTree.hpp tree/bTree.hpp tree/avlTree.hpp
+        tree/red_black_tree.hpp
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/tree)
     install(EXPORT GeneralFunctionsTreeTargets
         FILE GeneralFunctions-tree-targets.cmake
@@ -146,6 +147,9 @@ if(GENERAL_FUNCTIONS_BUILD_TESTS)
         add_executable(btree_tests tests/btree_test.cpp)
         target_link_libraries(btree_tests PRIVATE GeneralFunctions::tree GTest::gtest_main)
         gtest_discover_tests(btree_tests DISCOVERY_MODE PRE_TEST)
+        add_executable(red_black_tree_tests tests/red_black_tree_test.cpp)
+        target_link_libraries(red_black_tree_tests PRIVATE GeneralFunctions::tree GTest::gtest_main)
+        gtest_discover_tests(red_black_tree_tests DISCOVERY_MODE PRE_TEST)
         add_executable(multiway_tree_tests tests/multiway_tree_test.cpp)
         target_link_libraries(multiway_tree_tests PRIVATE GeneralFunctions::tree GTest::gtest_main)
         gtest_discover_tests(multiway_tree_tests DISCOVERY_MODE PRE_TEST)
