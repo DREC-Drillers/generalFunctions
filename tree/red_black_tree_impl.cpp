@@ -301,24 +301,28 @@ redBlackTree_t<keyT, Comp>::deleteFixupLeftCase(iterator extraBlackNode) {
 
     if (extraBlackNode->sibling()->color() == nodeColor_t::RED) {
         extraBlackNode->sibling()->setColor(nodeColor_t::BLACK);
-        parent->setColor(nodeCOlor_t::RED);
+        parent->setColor(nodeColor_t::RED);
         rotateLeft(parent);
     }
 
     if (extraBlackNode->nearNephew()->color() == nodeColor_t::BLACK &&
         extraBlackNode->farNephew()->color() == nodeColor_t::BLACK) {
+        extraBlackNode->sibling()->setColor(nodeColor_t::RED);
         extraBlackNode = parent;
     } else {
         if (extraBlackNode->farNephew()->color() == nodeColor_t::BLACK) {
             extraBlackNode->nearNephew()->setColor(nodeColor_t::BLACK);
             extraBlackNode->sibling()->setColor(nodeColor_t::RED);
+
             rotateRight(extraBlackNode->sibling());
         }
         extraBlackNode->sibling()->setColor(parent->color());
         parent->setColor(nodeColor_t::BLACK);
         extraBlackNode->farNephew()->setColor(nodeColor_t::BLACK);
+
         rotateLeft(parent);
-        extraBlackNode
+
+        extraBlackNode = root_;
     }
 }
 
