@@ -1,4 +1,5 @@
 #include <memory>
+#include <optional>
 #include <utility>
 
 export namespace red_black_tree {
@@ -46,15 +47,14 @@ public:
     redBlackTree_t& operator=(redBlackTree_t&&) = delete;
 
 public:
-    iterator lowerBound(const keyT& key) const;
-    iterator upperBound(const keyT& key) const;
-    // Both positions must belong to this tree; nil denotes the end position.
+    std::optional<keyT> lowerBound(const keyT& key) const;
+    std::optional<keyT> upperBound(const keyT& key) const;
     int distance(iterator fst, iterator snd) const;
 
 public:
     void insert(keyT key);
     void erase(const keyT& key);
-    iterator find(const keyT& key);
+    bool find(const keyT& key);
 };
 
 } // namespace red_black_tree
