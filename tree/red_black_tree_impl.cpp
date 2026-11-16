@@ -90,6 +90,8 @@ redBlackTree_t<keyT>::rotateLeft(iterator node) {
             node.parent().setLeft(pivot);
         else
             node.parent().setRight(pivot);
+    } else {
+        root_ = pivot;
     }
 
     node.setRight(pivot.left());
@@ -112,6 +114,8 @@ redBlackTree_t<keyT>::rotateRight(iterator node) {
             node.parent().setLeft(pivot);
         else
             node.parent().setRight(pivot);
+    } else {
+        root_ = pivot;
     }
 
     node.setLeft(pivot.right());
@@ -339,10 +343,11 @@ redBlackTree_t<keyT, Comp>::rotateSibling(iterator node) {
         return;
     }
 
+    iterator parent = node->parent();
     if (node == parent->left()) {
         rotateRight(sibling);
     } else {
-        rotateRight(sibling);
+        rotateLeft(sibling);
     }
 }
 
