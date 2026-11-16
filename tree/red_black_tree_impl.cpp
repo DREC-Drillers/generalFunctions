@@ -15,7 +15,7 @@ public:
     node_t(keyT key, iterator parent = nullptr)
         : key_(key), parent_(parent) {};
 
-    keyT key() const { return key; };
+    keyT key() const { return key_; };
     nodeColor_t color() const { return color_; };
     iterator parent() const { return parent_; };
     iterator left() const { return left_; };
@@ -168,11 +168,13 @@ redBlackTree_t<keyT>::insertCase4(iterator node) {
 
     if (node == parent.right() && parent == grandparent.left()) {
         rotateLeft(parent);
+        node = node->left();
     } else if (node == parent.left() && parent == grandparent.right()) {
         rotateRight(parent);
+        node = node->right();
     }
 
-    insertCase5(parent);
+    insertCase5(node);
 }
 
 void
@@ -190,50 +192,41 @@ redBlackTree_t<keyT>::insertCase5(iterator node) {
     }
 }
 
-iterator
-redBlackTree_t<keyT>::find(keyT key, iterator node) {
+template <typename keyT, typename Comp>
+typename redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::find(keyT key, iterator node) {
     if (!node) {
         return nullptr;
     }
-    if (node.key() == key) {
-        return node;
+    if (comp_(key, node->key())) {
+        return find(key, node->left());
     }
-    return key < node.key() ? find(key, node.left()) : find(key, node.right());
+    if (comp_(node->key(), key)) {
+        return find(key, node->right());
+    }
+    return node;
 }
 
+template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT>::insert(keyT key, iterator node, iterator parent) {
+redBlackTree_t<keyT, Comp>::insert(keyT key, iterator node, iterator parent) {
     if (!node) {
         iterator newNode = new iterator(key, parent);
         insertCase1(newNode);
     }
 
-    if (node.key() == key) {
-        return;
+    if (comp_(key, node->key())) {
+        return insert(key, node->left(), node);
     }
-
-    return node.key() < key ? insert(key, node.left, node) :
-                              insert(key, node.right, node);
+    if (comp_(node->key(), key)) {
+        return insert(key, node->right(), node);
+    }
 }
 
 void
-redBlackTree_t<keyT>::delete(keyT key, iterator node = root_) {
-    if (!node) {
-        return;
-    }
-
-    if (key > node->key()) {
-        return delete(key, node->right());
-    }
-    if (key < node->key()) {
-        return delete(key, node->left());
-    }
-
-    if (node->left() && node->right()) {
-        return deleteNodeWithTwoChilds(node);
-    }
-
-    deleteNodeWithLessThanTwoChilds(node);
+redBlackTree_t<keyT>::delete(keyT key) {
+    iterator rmNode = find(key);
+    deleteNode(rmNode);
 }
 
 iterator

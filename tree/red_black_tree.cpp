@@ -1,10 +1,11 @@
-
+#include <utility>
 
 export namespace red_black_tree {
 
 template <typename keyT, typename Comp>
 class redBlackTree_t {
 private:
+    Comp comp_;
     enum class nodeColor_t {RED, BLACK};
     class node_t;
     using iterator = node_t*;
@@ -13,13 +14,15 @@ private:
     iterator nil() { return &nil; }
 
 public:
+    explicit redBlackTree_t(Comp comp = Comp{}) : comp_(std::move(comp)) {}
+
     iterator lowerBound(keyT key) const;
     iterator upperBound(keyT key) const;
     iterator distance(iterator fst, iterator snd) const;
 
 public:
     void insert(keyT key, iterator node = root_, iterator parent = nullptr);
-    void delete(keyT key, iterator node = root_);
+    void delete(keyT key);
     iterator find(keyT key, iterator node = root_);
 }
 
