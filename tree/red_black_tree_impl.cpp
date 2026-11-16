@@ -287,48 +287,63 @@ removeNodeWithTwoChildren(iterator rmNode) {
 void
 redBlackTree_t<keyT, Comp>deleteFixup(iterator extraBlackNode) {
     while (extraBlackNode != root_ && extraBlackNode->color() == nodeColor_t::BLACK) {
-        if (extraBlackNode == extraBlackNode->parent()->left()) {
-            deleteFixupLeftCase(extraBlackNode);
-        } else {
-            deleteFixupRightCase(extraBlackNode);
+        iterator parent = extraBlackNode->parent();
+
+        if (extraBlackNode->sibling()->color() == nodeColor_t::RED) {
+            extraBlackNode->sibling()->setColor(nodeColor_t::BLACK);
+            parent->setColor(nodeColor_t::RED);
+            rotateParent(extraBlackNode);
         }
-    }
-}
 
-void
-redBlackTree_t<keyT, Comp>::deleteFixupLeftCase(iterator extraBlackNode) {
-    iterator parent = extraBlackNode->parent();
-
-    if (extraBlackNode->sibling()->color() == nodeColor_t::RED) {
-        extraBlackNode->sibling()->setColor(nodeColor_t::BLACK);
-        parent->setColor(nodeColor_t::RED);
-        rotateLeft(parent);
-    }
-
-    if (extraBlackNode->nearNephew()->color() == nodeColor_t::BLACK &&
-        extraBlackNode->farNephew()->color() == nodeColor_t::BLACK) {
-        extraBlackNode->sibling()->setColor(nodeColor_t::RED);
-        extraBlackNode = parent;
-    } else {
-        if (extraBlackNode->farNephew()->color() == nodeColor_t::BLACK) {
-            extraBlackNode->nearNephew()->setColor(nodeColor_t::BLACK);
+        if (extraBlackNode->nearNephew()->color() == nodeColor_t::BLACK &&
+            extraBlackNode->farNephew()->color() == nodeColor_t::BLACK) {
             extraBlackNode->sibling()->setColor(nodeColor_t::RED);
+            extraBlackNode = parent;
+        } else {
+            if (extraBlackNode->farNephew()->color() == nodeColor_t::BLACK) {
+                extraBlackNode->nearNephew()->setColor(nodeColor_t::BLACK);
+                extraBlackNode->sibling()->setColor(nodeColor_t::RED);
 
-            rotateRight(extraBlackNode->sibling());
+                rotateSibling(extraBlackNode);
+            }
+            extraBlackNode->sibling()->setColor(parent->color());
+            parent->setColor(nodeColor_t::BLACK);
+            extraBlackNode->farNephew()->setColor(nodeColor_t::BLACK);
+
+            rotateParent(extraBlackNode);
+
+            extraBlackNode = root_;
         }
-        extraBlackNode->sibling()->setColor(parent->color());
-        parent->setColor(nodeColor_t::BLACK);
-        extraBlackNode->farNephew()->setColor(nodeColor_t::BLACK);
+    }
+    extraBlackNode->setColor(nodeColor_t::BLACK);
+}
 
+void
+redBlackTree_t<keyT, Comp>::rotateParent(iterator node) {
+    iterator parent = node->parent();
+    if (!parent) {
+        return;
+    }
+
+    if (node == parent->left()) {
         rotateLeft(parent);
-
-        extraBlackNode = root_;
+    } else {
+        rotateRight(parent);
     }
 }
 
 void
-redBlackTree_t<keyT, Comp>deleteFixupRightCase(iterator extraBlackNode) {
+redBlackTree_t<keyT, Comp>::rotateSibling(iterator node) {
+    iterator sibling = node->sibling();
+    if (!sibling) {
+        return;
+    }
 
+    if (node == parent->left()) {
+        rotateRight(sibling);
+    } else {
+        rotateRight(sibling);
+    }
 }
 
 void
