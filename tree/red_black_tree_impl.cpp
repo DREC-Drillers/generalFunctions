@@ -296,30 +296,27 @@ redBlackTree_t<keyT, Comp>deleteFixup(iterator extraBlackNode) {
 }
 
 void
-redBlackTree_t<keyT, Comp>deleteFixupLeftCase(iterator extraBlackNode) {
+redBlackTree_t<keyT, Comp>::deleteFixupLeftCase(iterator extraBlackNode) {
     iterator parent = extraBlackNode->parent();
-    iterator sibling = extraBlackNode->sibling();
-    iterator nearNephew = extraBlackNode->nearNephew;
-    iterator farNephew = extraBlackNode->farNephew;
 
-    if (sibling->color() == nodeColor_t::RED) {
-        sibling->setColor(nodeColor_t::BLACK);
+    if (extraBlackNode->sibling()->color() == nodeColor_t::RED) {
+        extraBlackNode->sibling()->setColor(nodeColor_t::BLACK);
         parent->setColor(nodeCOlor_t::RED);
         rotateLeft(parent);
-        sibling = extraBlackNode->sibling();
     }
-    if (nearNephew->color() == nodeColor_t::BLACK &&
-        farNephew->color() == nodeColor_t::BLACK) {
+
+    if (extraBlackNode->nearNephew()->color() == nodeColor_t::BLACK &&
+        extraBlackNode->farNephew()->color() == nodeColor_t::BLACK) {
         extraBlackNode = parent;
     } else {
-        if (farNephew->color() == nodeColor_t::BLACK) {
-            nearNephew->setColor(nodeColor_t::BLACK);
-            sibling->setColor(nodeColor_t::RED);
-            rotateRight(sibling);
+        if (extraBlackNode->farNephew()->color() == nodeColor_t::BLACK) {
+            extraBlackNode->nearNephew()->setColor(nodeColor_t::BLACK);
+            extraBlackNode->sibling()->setColor(nodeColor_t::RED);
+            rotateRight(extraBlackNode->sibling());
         }
-        sibling->setColor(parent->color());
+        extraBlackNode->sibling()->setColor(parent->color());
         parent->setColor(nodeColor_t::BLACK);
-        farNephew->setColor(nodeColor_t::BLACK);
+        extraBlackNode->farNephew()->setColor(nodeColor_t::BLACK);
         rotateLeft(parent);
         extraBlackNode
     }
