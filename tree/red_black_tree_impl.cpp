@@ -33,145 +33,155 @@ public:
     void setParent(iterator parent) { parent_ = parent; };
     void setLeft(iterator left) { left_ = left; };
     void setRight(iterator right) { right_ = right; };
-    void setColor(nodeColor_t color) { color_ = color};
+    void setColor(nodeColor_t color) { color_ = color; };
+};
+
+template <typename keyT, typename Comp>
+redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::node_t::grandparent() const {
+    return parent_ == nullptr ? nullptr : parent_->parent();
 }
 
-iterator
-node_t::grandparent() {
-    return parent_ == nullptr ? nullptr : parent_.parent();
-}
-
-iterator
-node_t::uncle() {
-    iterator grandparent = grandparent();
+template <typename keyT, typename Comp>
+redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::node_t::uncle() const {
+    iterator grandparent = this->grandparent();
     if (!grandparent) {
         return nullptr;
     }
 
-    return parent() == grandparent.left() ? grandparent.right() : grandparent.left();
+    return parent_ == grandparent->left() ? grandparent->right() : grandparent->left();
 }
 
-iterator
-node_t::sibling() {
-    iterator parent = node.parent();
-    if (!parent) {
+template <typename keyT, typename Comp>
+redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::node_t::sibling() const {
+    if (!parent_) {
         return nullptr;
     }
 
-    return node == parent.left() ? parent.right() : parent.left();
+    return this == parent_->left() ? parent_->right() : parent_->left();
 }
 
-iterator
-node_t::nearNephew() {
-    iterator sibling = node->sibling();
+template <typename keyT, typename Comp>
+redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::node_t::nearNephew() const {
+    iterator sibling = sibling();
     if (!sibling) {
         return nullptr;
     }
 
-    return node == node->parent()->left() ? sibling->left() : sibling->right();
+    return this == parent_->left() ? sibling->left() : sibling->right();
 }
 
-iterator
-node_t::farNephew() {
-    iterator sibling = node->sibling();
+template <typename keyT, typename Comp>
+redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::node_t::farNephew() const {
+    iterator sibling = sibling();
     if (!sibling) {
         return nullptr;
     }
 
-    return node == node->parent()->left() ? sibling->right() : sibling->left();
+    return this == parent_->left() ? sibling->right() : sibling->left();
 }
 
+template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT>::rotateLeft(iterator node) {
+redBlackTree_t<keyT, Comp>::rotateLeft(iterator node) {
 
-    iterator pivot = node.right();
+    iterator pivot = node->right();
 
-    pivot.setParent(node.parent());
-    if (node.parent()) {
-        if (node.parent().left() == node)
-            node.parent().setLeft(pivot);
+    pivot->setParent(node->parent());
+    if (node->parent()) {
+        if (node->parent()->left() == node)
+            node->parent()->setLeft(pivot);
         else
-            node.parent().setRight(pivot);
+            node->parent()->setRight(pivot);
     } else {
         root_ = pivot;
     }
 
-    node.setRight(pivot.left());
-    if (pivot.left()) {
-        pevot.left().setParent(node);
+    node->setRight(pivot->left());
+    if (pivot->left()) {
+        pivot->left()->setParent(node);
     }
 
-    node.setParent(pivot);
-    pivot.setLeft(node);
+    node->setParent(pivot);
+    pivot->setLeft(node);
 }
 
+template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT>::rotateRight(iterator node) {
+redBlackTree_t<keyT, Comp>::rotateRight(iterator node) {
 
-    iterator pivot = node.left();
+    iterator pivot = node->left();
 
-    pivot.setParent(node.parent());
-    if (node.parent()) {
-        if (node.parent().left() == node)
-            node.parent().setLeft(pivot);
+    pivot->setParent(node->parent());
+    if (node->parent()) {
+        if (node->parent()->left() == node)
+            node->parent()->setLeft(pivot);
         else
-            node.parent().setRight(pivot);
+            node->parent()->setRight(pivot);
     } else {
         root_ = pivot;
     }
 
-    node.setLeft(pivot.right());
-    if (pivot.right()) {
-        pivot.right().setParent(node);
+    node->setLeft(pivot->right());
+    if (pivot->right()) {
+        pivot->right()->setParent(node);
     }
 
-    node.setParent(pivot);
-    pivot.setRight(node);
+    node->setParent(pivot);
+    pivot->setRight(node);
 }
 
+template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT>::insertCase1(iterator node) {
-    if (!node.parent()) {
-        node.setColor(nodeColor_t::BLACK);
+redBlackTree_t<keyT, Comp>::insertCase1(iterator node) {
+    if (!node->parent()) {
+        node->setColor(nodeColor_t::BLACK);
     } else {
         insertCase2(node);
     }
 }
 
+template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT>::insertCase2(iterator node) {
-    if (n.parent().color() == nodeColor_t::BLACK)
-		return;
-	else
-		insertCase3(node);
+redBlackTree_t<keyT, Comp>::insertCase2(iterator node) {
+    if (node->parent()->color() == nodeColor_t::BLACK) {
+        return;
+    }
+    insertCase3(node);
 }
 
+template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT>::insertCase3(iterator node) {
-    iterator uncle = node.uncle();
-    iterator grandparent = node.grandparent();
-    iterator parent = node.parent();
+redBlackTree_t<keyT, Comp>::insertCase3(iterator node) {
+    iterator uncle = node->uncle();
+    iterator grandparent = node->grandparent();
+    iterator parent = node->parent();
 
-	if ((uncle) && (uncle.color() == nodeColor_t::RED)) {
-		parent.setColor(nodeColor_t::BLACK);
-		uncle.setColor(nodeColor_t::BLACK);
+    if (uncle && uncle->color() == nodeColor_t::RED) {
+        parent->setColor(nodeColor_t::BLACK);
+        uncle->setColor(nodeColor_t::BLACK);
 
-        grandparent.setColor(nodeColor_t::RED);
-		insertCase1(grandparent);
-	} else {
-		insertCase4(node);
-	}
+        grandparent->setColor(nodeColor_t::RED);
+        insertCase1(grandparent);
+    } else {
+        insertCase4(node);
+    }
 }
 
+template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT>::insertCase4(iterator node) {
-    iterator grandparent = node.grandparent();
-    iterator parent = node.parent();
+redBlackTree_t<keyT, Comp>::insertCase4(iterator node) {
+    iterator grandparent = node->grandparent();
+    iterator parent = node->parent();
 
-    if (node == parent.right() && parent == grandparent.left()) {
+    if (node == parent->right() && parent == grandparent->left()) {
         rotateLeft(parent);
         node = node->left();
-    } else if (node == parent.left() && parent == grandparent.right()) {
+    } else if (node == parent->left() && parent == grandparent->right()) {
         rotateRight(parent);
         node = node->right();
     }
@@ -179,15 +189,16 @@ redBlackTree_t<keyT>::insertCase4(iterator node) {
     insertCase5(node);
 }
 
+template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT>::insertCase5(iterator node) {
-    iterator grandparent = node.grandparent();
-    iterator parent = node.parent();
+redBlackTree_t<keyT, Comp>::insertCase5(iterator node) {
+    iterator grandparent = node->grandparent();
+    iterator parent = node->parent();
 
-    parent().setColor(nodeColor_t::BLACK);
-    grandparent.setColor(nodeColor_t::RED);
+    parent->setColor(nodeColor_t::BLACK);
+    grandparent->setColor(nodeColor_t::RED);
 
-    if (node == parent.left() && parent == grandparent.left()) {
+    if (node == parent->left() && parent == grandparent->left()) {
         rotateRight(grandparent);
     } else {
         rotateLeft(grandparent);
@@ -203,7 +214,7 @@ redBlackTree_t<keyT, Comp>::findInSubtree(keyT key, iterator subTreeRoot) {
     if (comp_(key, subTreeRoot->key())) {
         return findInSubtree(key, subTreeRoot->left());
     }
-    if (comp_(node->key(), key)) {
+    if (comp_(subTreeRoot->key(), key)) {
         return findInSubtree(key, subTreeRoot->right());
     }
     return subTreeRoot;
