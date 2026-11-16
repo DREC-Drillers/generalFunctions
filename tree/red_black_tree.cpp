@@ -17,9 +17,9 @@ private:
     iterator nil() const { return nil_.get(); }
 
     void destroySubtree(iterator node);
-    iterator findInSubtree(keyT key, iterator subTreeRoot);
+    iterator findInSubtree(const keyT& key, iterator subTreeRoot);
     iterator successor(iterator node) const;
-    void insertInSubtree(keyT key, iterator subtreeRoot, iterator parent, ChildSide side);
+    void insertInSubtree(keyT&& key, iterator subtreeRoot, iterator parent, ChildSide side);
     void rotateLeft(iterator node);
     void rotateRight(iterator node);
     void insertCase1(iterator node);
@@ -46,15 +46,15 @@ public:
     redBlackTree_t& operator=(redBlackTree_t&&) = delete;
 
 public:
-    iterator lowerBound(keyT key) const;
-    iterator upperBound(keyT key) const;
+    iterator lowerBound(const keyT& key) const;
+    iterator upperBound(const keyT& key) const;
     // Both positions must belong to this tree; nil denotes the end position.
     int distance(iterator fst, iterator snd) const;
 
 public:
     void insert(keyT key);
-    void erase(keyT key);
-    iterator find(keyT key);
+    void erase(const keyT& key);
+    iterator find(const keyT& key);
 };
 
 } // namespace red_black_tree

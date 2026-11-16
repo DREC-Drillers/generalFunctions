@@ -18,12 +18,12 @@ public:
     node_t()
         : color_(nodeColor_t::BLACK), parent_(this), left_(this), right_(this) {}
 
-    node_t(keyT key, iterator parent, iterator nil)
+    node_t(keyT&& key, iterator parent, iterator nil)
         : key_(std::move(key)), color_(nodeColor_t::RED), parent_(parent),
           left_(nil), right_(nil) {}
 
     bool isNil() const { return !key_.has_value(); }
-    keyT key() const { return key_.value(); }
+    const keyT& key() const { return key_.value(); }
     nodeColor_t color() const { return color_; }
     iterator parent() const { return parent_; }
     iterator left() const { return left_; }
@@ -224,7 +224,7 @@ redBlackTree_t<keyT, Comp>::insertCase5(iterator node) {
 
 template <typename keyT, typename Comp>
 redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::findInSubtree(keyT key, iterator subTreeRoot) {
+redBlackTree_t<keyT, Comp>::findInSubtree(const keyT& key, iterator subTreeRoot) {
     if (subTreeRoot == nil()) {
         return nil();
     }
@@ -239,13 +239,13 @@ redBlackTree_t<keyT, Comp>::findInSubtree(keyT key, iterator subTreeRoot) {
 
 template <typename keyT, typename Comp>
 redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::find(keyT key) {
+redBlackTree_t<keyT, Comp>::find(const keyT& key) {
     return findInSubtree(key, root_);
 }
 
 template <typename keyT, typename Comp>
 redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::lowerBound(keyT key) const {
+redBlackTree_t<keyT, Comp>::lowerBound(const keyT& key) const {
     iterator current = root_;
     iterator result = nil();
     while (current != nil()) {
@@ -261,7 +261,7 @@ redBlackTree_t<keyT, Comp>::lowerBound(keyT key) const {
 
 template <typename keyT, typename Comp>
 redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::upperBound(keyT key) const {
+redBlackTree_t<keyT, Comp>::upperBound(const keyT& key) const {
     iterator current = root_;
     iterator result = nil();
     while (current != nil()) {
@@ -327,9 +327,9 @@ redBlackTree_t<keyT, Comp>::distance(iterator fst, iterator snd) const {
 template <typename keyT, typename Comp>
 void
 redBlackTree_t<keyT, Comp>::insertInSubtree(
-    keyT key, iterator subtreeRoot, iterator parent, ChildSide side) {
+    keyT&& key, iterator subtreeRoot, iterator parent, ChildSide side) {
     if (subtreeRoot == nil()) {
-        iterator newNode = new node_t(key, parent, nil());
+        iterator newNode = new node_t(std::move(key), parent, nil());
         if (parent == nil()) {
             root_ = newNode;
         } else if (side == ChildSide::LEFT) {
@@ -342,22 +342,22 @@ redBlackTree_t<keyT, Comp>::insertInSubtree(
     }
 
     if (comp_(key, subtreeRoot->key())) {
-        return insertInSubtree(key, subtreeRoot->left(), subtreeRoot, ChildSide::LEFT);
+        return insertInSubtree(std::move(key), subtreeRoot->left(), subtreeRoot, ChildSide::LEFT);
     }
     if (comp_(subtreeRoot->key(), key)) {
-        return insertInSubtree(key, subtreeRoot->right(), subtreeRoot, ChildSide::RIGHT);
+        return insertInSubtree(std::move(key), subtreeRoot->right(), subtreeRoot, ChildSide::RIGHT);
     }
 }
 
 template <typename keyT, typename Comp>
 void
 redBlackTree_t<keyT, Comp>::insert(keyT key) {
-    return insertInSubtree(key, root_, nil(), ChildSide::LEFT);
+    return insertInSubtree(std::move(key), root_, nil(), ChildSide::LEFT);
 }
 
 template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT, Comp>::erase(keyT key) {
+redBlackTree_t<keyT, Comp>::erase(const keyT& key) {
     iterator rmNode = find(key);
     deleteNode(rmNode);
 }
