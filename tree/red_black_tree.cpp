@@ -12,7 +12,7 @@ private:
     iterator root_ = nullptr;
     node_t = nil_;
     iterator nil() { return &nil; }
-    void insertInSubtree(keyT key, iterator subtreeRoot, iterator parent);
+    void insertInSubtree(keyT key, iterator* link, iterator parent);
 
 public:
     explicit redBlackTree_t(Comp comp = Comp{}) : comp_(std::move(comp)) {}

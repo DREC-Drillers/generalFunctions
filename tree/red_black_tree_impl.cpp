@@ -5,6 +5,8 @@ namespace red_black_tree {
 template <typename keyT, typename Comp>
 class redBlackTree_t<keyT, Comp>::node_t {
 private:
+    friend class redBlackTree_t<keyT, Comp>;
+
     keyT key_;
     nodeColor_t color_ = nodeColor_t::RED;
     iterator parent_;
@@ -215,33 +217,26 @@ redBlackTree_t<keyT, Comp>::find(keyT key) {
 
 template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT, Comp>::insertInSubtree(keyT key, iterator subtreeRoot, iterator parent) {
+redBlackTree_t<keyT, Comp>::insertInSubtree(keyT key, iterator* link, iterator parent) {
+    iterator subtreeRoot = *link;
     if (!subtreeRoot) {
-        const bool insertLeft = parent && comp_(key, parent->key());
-        iterator newNode = new node_t(key, parent);
-        if (!parent) {
-            root_ = newNode;
-        } else if (insertLeft) {
-            parent->setLeft(newNode);
-        } else {
-            parent->setRight(newNode);
-        }
-        insertCase1(newNode);
+        *link = new node_t(key, parent);
+        insertCase1(*link);
         return;
     }
 
     if (comp_(key, subtreeRoot->key())) {
-        return insertInSubtree(key, subtreeRoot->left(), subtreeRoot);
+        return insertInSubtree(key, &subtreeRoot->left_, subtreeRoot);
     }
     if (comp_(subtreeRoot->key(), key)) {
-        return insertInSubtree(key, subtreeRoot->right(), subtreeRoot);
+        return insertInSubtree(key, &subtreeRoot->right_, subtreeRoot);
     }
 }
 
 template <typename keyT, typename Comp>
 void
 redBlackTree_t<keyT, Comp>::insert(keyT key) {
-    return insertInSubtree(key, root_, nullptr);
+    return insertInSubtree(key, &root_, nullptr);
 }
 
 void
