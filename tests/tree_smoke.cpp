@@ -101,10 +101,40 @@ void testCopyExceptionSafety() {
     require(target.size() == 3 && empty.empty());
 }
 
+void testTopologyUpdates() {
+    general_functions::BinaryTree<int> tree;
+    const auto first = tree.addRoot(10);
+    const auto second = tree.addRight(first, 20);
+    const auto third = tree.addLeft(second, 15);
+    tree.setRight(first, third);
+    tree.setLeft(second, first);
+    tree.setRoot(second);
+    require(tree.root() == second);
+    require(tree.left(second) == first && tree.right(first) == third);
+    auto copy = tree;
+    require(copy.root() == second && copy.left(second) == first);
+    auto moved = std::move(copy);
+    require(moved.root() == second && copy.empty() && !copy.root());
+    copy.addRoot(99);
+    require(copy.value(*copy.root()) == 99);
+    general_functions::BinaryTree<int> assigned;
+    assigned = tree;
+    require(assigned.root() == second);
+    assigned = std::move(moved);
+    require(assigned.root() == second && moved.empty() && !moved.root());
+    const auto bad =
+        std::numeric_limits<general_functions::BinaryTree<int>::NodeId>::max();
+    requireThrows<std::out_of_range>([&] { tree.setRoot(bad); });
+    requireThrows<std::out_of_range>([&] { tree.setLeft(first, bad); });
+    requireThrows<std::out_of_range>([&] { tree.setRight(bad, first); });
+    require(tree.root() == second && tree.right(first) == third);
+}
+
 } // namespace
 
 int main() {
     testCopyExceptionSafety();
+    testTopologyUpdates();
     using general_functions::BinaryTree;
     BinaryTree<int> tree;
     require(tree.empty() && tree.size() == 0 && !tree.root());
