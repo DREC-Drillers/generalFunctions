@@ -1,4 +1,6 @@
+#include <limits>
 #include <optional>
+#include <stdexcept>
 #include <tuple>
 
 namespace red_black_tree {
@@ -242,6 +244,87 @@ redBlackTree_t<keyT, Comp>::find(keyT key) {
 }
 
 template <typename keyT, typename Comp>
+redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::lowerBound(keyT key) const {
+    iterator current = root_;
+    iterator result = nil();
+    while (current != nil()) {
+        if (comp_(current->key(), key)) {
+            current = current->right();
+        } else {
+            result = current;
+            current = current->left();
+        }
+    }
+    return result;
+}
+
+template <typename keyT, typename Comp>
+redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::upperBound(keyT key) const {
+    iterator current = root_;
+    iterator result = nil();
+    while (current != nil()) {
+        if (comp_(key, current->key())) {
+            result = current;
+            current = current->left();
+        } else {
+            current = current->right();
+        }
+    }
+    return result;
+}
+
+template <typename keyT, typename Comp>
+redBlackTree_t<keyT, Comp>::iterator
+redBlackTree_t<keyT, Comp>::successor(iterator node) const {
+    if (node == nil()) {
+        return nil();
+    }
+    if (node->right() != nil()) {
+        node = node->right();
+        while (node->left() != nil()) {
+            node = node->left();
+        }
+        return node;
+    }
+    iterator parent = node->parent();
+    while (parent != nil() && node == parent->right()) {
+        node = parent;
+        parent = parent->parent();
+    }
+    return parent;
+}
+
+template <typename keyT, typename Comp>
+int
+redBlackTree_t<keyT, Comp>::distance(iterator fst, iterator snd) const {
+    if (!fst || !snd) {
+        throw std::invalid_argument("redBlackTree: use nil instead of nullptr");
+    }
+    if (fst == snd) {
+        return 0;
+    }
+    const bool reverse = fst == nil() ||
+        (snd != nil() && comp_(snd->key(), fst->key()));
+    if (reverse) {
+        std::swap(fst, snd);
+    }
+    int count = 0;
+    while (fst != snd && fst != nil()) {
+        if (count == std::numeric_limits<int>::max()) {
+            throw std::overflow_error("redBlackTree: distance does not fit in int");
+        }
+        fst = successor(fst);
+        ++count;
+    }
+    if (fst != snd) {
+        throw std::invalid_argument("redBlackTree: positions are not in the same range");
+    }
+    return reverse ? -count : count;
+}
+
+template <typename keyT, typename Comp>
 void
 redBlackTree_t<keyT, Comp>::insertInSubtree(
     keyT key, iterator subtreeRoot, iterator parent, ChildSide side) {
@@ -274,7 +357,7 @@ redBlackTree_t<keyT, Comp>::insert(keyT key) {
 
 template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT, Comp>::delete(keyT key) {
+redBlackTree_t<keyT, Comp>::erase(keyT key) {
     iterator rmNode = find(key);
     deleteNode(rmNode);
 }

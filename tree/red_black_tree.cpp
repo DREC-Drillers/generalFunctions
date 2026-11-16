@@ -14,10 +14,11 @@ private:
 
     std::unique_ptr<node_t> nil_;
     iterator root_;
-    iterator nil() { return nil_.get(); }
+    iterator nil() const { return nil_.get(); }
 
     void destroySubtree(iterator node);
     iterator findInSubtree(keyT key, iterator subTreeRoot);
+    iterator successor(iterator node) const;
     void insertInSubtree(keyT key, iterator subtreeRoot, iterator parent, ChildSide side);
     void rotateLeft(iterator node);
     void rotateRight(iterator node);
@@ -47,11 +48,12 @@ public:
 public:
     iterator lowerBound(keyT key) const;
     iterator upperBound(keyT key) const;
-    iterator distance(iterator fst, iterator snd) const;
+    // Both positions must belong to this tree; nil denotes the end position.
+    int distance(iterator fst, iterator snd) const;
 
 public:
     void insert(keyT key);
-    void delete(keyT key);
+    void erase(keyT key);
     iterator find(keyT key);
 };
 
