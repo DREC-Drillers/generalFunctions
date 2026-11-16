@@ -8,6 +8,7 @@ class redBlackTree_t {
 private:
     Comp comp_;
     enum class nodeColor_t {RED, BLACK};
+    enum class ChildSide {LEFT, RIGHT};
     class node_t;
     using iterator = node_t*;
 
@@ -15,9 +16,9 @@ private:
     iterator root_;
     iterator nil() { return nil_.get(); }
 
-    void destroySubtree(iterator node) noexcept;
+    void destroySubtree(iterator node);
     iterator findInSubtree(keyT key, iterator subTreeRoot);
-    void insertInSubtree(keyT key, iterator* link, iterator parent);
+    void insertInSubtree(keyT key, iterator subtreeRoot, iterator parent, ChildSide side);
     void rotateLeft(iterator node);
     void rotateRight(iterator node);
     void insertCase1(iterator node);
