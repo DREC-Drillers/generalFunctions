@@ -4,12 +4,14 @@
 #include <set>
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <tuple>
 #include <unordered_set>
+#include <vector>
 // Inspect topology in tests without exposing nodes in the public API.
 #define private public
 #include "tree/red_black_tree.hpp"
@@ -49,31 +51,41 @@ TEST(RedBlackTree, BoundResultSurvivesTreeDestruction) {
 namespace {
 template<class Tree>
 void verify(Tree& tree, const std::set<int>& expected) {
-    auto nil = tree.nil();
-    using Color = decltype(nil->color());
-    ASSERT_EQ(nil->color(), Color::BLACK);
-    ASSERT_EQ(nil->left(), nil);
-    ASSERT_EQ(nil->right(), nil);
-    ASSERT_EQ(tree.root_->parent(), nil);
-    ASSERT_EQ(tree.root_->color(), Color::BLACK);
-    std::unordered_set<decltype(nil)> visited;
-    std::vector<int> keys;
-    std::function<int(decltype(nil))> walk = [&](auto node) -> int {
-        if (node == nil) return 1;
-        if (!visited.insert(node).second) { ADD_FAILURE() << "cycle or shared node"; return 0; }
-        if (node->left() != nil) EXPECT_EQ(node->left()->parent(), node);
-        if (node->right() != nil) EXPECT_EQ(node->right()->parent(), node);
-        if (node->color() == Color::RED) {
-            EXPECT_EQ(node->left()->color(), Color::BLACK);
-            EXPECT_EQ(node->right()->color(), Color::BLACK);
-        }
-        int left = walk(node->left());
-        keys.push_back(node->key());
-        int right = walk(node->right());
-        EXPECT_EQ(left, right);
-        return left + (node->color() == Color::BLACK);
+    using NodeId = typename Tree::NodeId;
+    using Color = typename Tree::nodeColor_t;
+    const NodeId nil = tree.nil();
+    const auto& storage = tree.tree_;
+    const NodeId root = storage.root();
+    ASSERT_EQ(storage.size(), expected.size());
+    ASSERT_EQ(root == nil, expected.empty());
+
+    auto colorOf = [&](NodeId id) {
+        return id == nil ? Color::BLACK : storage.getNode(id).data().color;
     };
-    walk(tree.root_);
+    ASSERT_EQ(colorOf(root), Color::BLACK);
+    std::unordered_set<NodeId> visited;
+    std::vector<int> keys;
+    std::function<int(NodeId, NodeId)> walk = [&](NodeId id, NodeId parent) -> int {
+        if (id == nil) {
+            return 1;
+        }
+        if (!visited.insert(id).second) {
+            ADD_FAILURE() << "cycle or shared node";
+            return 0;
+        }
+        const auto& node = storage.getNode(id);
+        EXPECT_EQ(node.parent(), parent);
+        if (node.data().color == Color::RED) {
+            EXPECT_EQ(colorOf(node.left()), Color::BLACK);
+            EXPECT_EQ(colorOf(node.right()), Color::BLACK);
+        }
+        int left = walk(node.left(), id);
+        keys.push_back(node.data().key);
+        int right = walk(node.right(), id);
+        EXPECT_EQ(left, right);
+        return left + (node.data().color == Color::BLACK);
+    };
+    walk(root, nil);
     EXPECT_EQ(keys, std::vector<int>(expected.begin(), expected.end()));
 }
 using Tree = red_black_tree::redBlackTree_t<int, std::less<int>>;
@@ -136,15 +148,20 @@ TEST(RedBlackTree, PrivateTraversalHelpers) {
     EXPECT_EQ(tree.successor(tree.nil()), tree.nil());
     EXPECT_EQ(tree.treeMaxKeyNode(tree.nil()), tree.nil());
     for(int key : {4,2,6,1,3,5,7}) tree.insert(key);
-    auto node = tree.treeMinKeyNode(tree.root_);
-    for(int key=1; key<=7; ++key) { ASSERT_NE(node, tree.nil()); EXPECT_EQ(node->key(),key); node=tree.successor(node); }
-    EXPECT_EQ(node, tree.nil());
-    EXPECT_EQ(tree.treeMaxKeyNode(tree.root_)->key(), 7);
-    EXPECT_EQ(tree.root_->grandparent(),tree.nil());
-    EXPECT_EQ(tree.root_->uncle(),tree.nil());
-    EXPECT_EQ(tree.root_->sibling(),tree.nil());
-    tree.rotateParent(tree.root_);
-    tree.rotateSibling(tree.root_);
+    const auto root = tree.tree_.root();
+    auto nodeId = tree.treeMinKeyNode(root);
+    for (int key = 1; key <= 7; ++key) {
+        ASSERT_NE(nodeId, tree.nil());
+        EXPECT_EQ(tree.tree_.getNode(nodeId).data().key, key);
+        nodeId = tree.successor(nodeId);
+    }
+    EXPECT_EQ(nodeId, tree.nil());
+    EXPECT_EQ(tree.tree_.getNode(tree.treeMaxKeyNode(root)).data().key, 7);
+    EXPECT_EQ(tree.grandparent(root), tree.nil());
+    EXPECT_EQ(tree.uncle(root), tree.nil());
+    EXPECT_EQ(tree.sibling(root, tree.nil()), tree.nil());
+    tree.rotateParent(root, tree.nil());
+    tree.rotateSibling(root, tree.nil());
     verify(tree, {1,2,3,4,5,6,7});
 }
 

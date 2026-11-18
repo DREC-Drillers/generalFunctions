@@ -44,14 +44,14 @@ public:
 
     NodeId addRoot(T value);
     NodeId allocateNode(T&& value);
+    // Reserve room to release one node before changing any links.
+    void prepareRelease();
     void releaseNode(NodeId node);
 
     void rotateLeft(NodeId node);
     void rotateRight(NodeId node);
 
-    // Replace the incoming link to oldRoot. INVALID_NODE removes that link.
-    // The caller handles child links and any previous link to replacement.
-    void transplant(NodeId oldRoot, NodeId replacement);
+    void transplant(NodeId replaceableNodeId, NodeId newNodeId);
 };
 
 template <typename T>
@@ -151,6 +151,24 @@ typename BinaryTree<T>::NodeId BinaryTree<T>::allocateNode(T&& value) {
     const auto id = static_cast<NodeId>(nodes_.size());
     nodes_.emplace_back(std::in_place, std::move(value));
     return id;
+}
+
+template <typename T>
+void BinaryTree<T>::prepareRelease() {
+    const auto capacity = freeNodes_.capacity();
+    if (freeNodes_.size() < capacity) {
+        return;
+    }
+
+    const auto maxCapacity = freeNodes_.max_size();
+    if (capacity == maxCapacity) {
+        throw std::length_error("BinaryTree: too many free nodes");
+    }
+    if (capacity == 0) {
+        freeNodes_.reserve(1);
+    } else {
+        freeNodes_.reserve(capacity <= maxCapacity / 2 ? capacity * 2 : maxCapacity);
+    }
 }
 
 template <typename T>

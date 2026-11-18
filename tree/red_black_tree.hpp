@@ -1,10 +1,10 @@
 #pragma once
-#include <memory>
+
 #include <optional>
-#include <utility>
-#include <limits>
-#include <stdexcept>
 #include <tuple>
+#include <utility>
+
+#include "binary_tree.hpp"
 
 namespace red_black_tree {
 
@@ -14,36 +14,44 @@ private:
     Comp comp_;
     enum class nodeColor_t {RED, BLACK};
     enum class ChildSide {LEFT, RIGHT};
-    class node_t;
-    using iterator = node_t*;
 
-    std::unique_ptr<node_t> nil_;
-    iterator root_;
-    iterator nil() const { return nil_.get(); }
+    struct NodeData {
+        keyT key;
+        nodeColor_t color = nodeColor_t::RED;
+    };
 
-    void destroySubtree(iterator node);
-    iterator findInSubtree(const keyT& key, iterator subTreeRoot) const;
-    iterator successor(iterator node) const;
-    void insertInSubtree(keyT&& key, iterator subtreeRoot, iterator parent, ChildSide side);
-    void rotateLeft(iterator node);
-    void rotateRight(iterator node);
-    void insertCase1(iterator node);
-    void insertCase2(iterator node);
-    void insertCase3(iterator node);
-    void insertCase4(iterator node);
-    void insertCase5(iterator node);
-    iterator treeMaxKeyNode(iterator node);
-    iterator treeMinKeyNode(iterator node);
-    void transplant(iterator replaceableNode, iterator newNode);
-    std::pair<iterator, nodeColor_t> removeNodeWithTwoChildren(iterator rmNode);
-    void deleteFixup(iterator extraBlackNode);
-    void rotateParent(iterator node);
-    void rotateSibling(iterator node);
-    void deleteNode(iterator rmNode);
+    using Tree = general_functions::BinaryTree<NodeData>;
+    using NodeId = typename Tree::NodeId;
+
+    Tree tree_;
+    static constexpr NodeId nil() { return Tree::INVALID_NODE; }
+
+    nodeColor_t colorOf(NodeId node) const;
+    NodeId grandparent(NodeId node) const;
+    NodeId uncle(NodeId node) const;
+    NodeId sibling(NodeId node, NodeId parent) const;
+    NodeId nearNephew(NodeId node, NodeId parent) const;
+    NodeId farNephew(NodeId node, NodeId parent) const;
+
+    NodeId findInSubtree(const keyT& key, NodeId subTreeRoot) const;
+    NodeId successor(NodeId node) const;
+    void insertInSubtree(keyT&& key, NodeId subtreeRoot, NodeId parent, ChildSide side);
+    void insertCase1(NodeId node);
+    void insertCase2(NodeId node);
+    void insertCase3(NodeId node);
+    void insertCase4(NodeId node);
+    void insertCase5(NodeId node);
+    NodeId treeMaxKeyNode(NodeId node) const;
+    NodeId treeMinKeyNode(NodeId node) const;
+    std::tuple<NodeId, NodeId, nodeColor_t> removeNodeWithTwoChildren(NodeId rmNode);
+    void deleteFixup(NodeId extraBlackNode, NodeId parent);
+    void rotateParent(NodeId node, NodeId parent);
+    void rotateSibling(NodeId node, NodeId parent);
+    void deleteNode(NodeId rmNode);
 
 public:
     explicit redBlackTree_t(Comp comp = Comp{});
-    ~redBlackTree_t();
+    ~redBlackTree_t() = default;
 
     redBlackTree_t(const redBlackTree_t&) = delete;
     redBlackTree_t& operator=(const redBlackTree_t&) = delete;
@@ -60,493 +68,451 @@ public:
     bool find(const keyT& key) const;
 };
 
-} // namespace red_black_tree
-
-
-namespace red_black_tree {
-
-template <typename keyT, typename Comp>
-class redBlackTree_t<keyT, Comp>::node_t {
-private:
-    std::optional<keyT> key_;
-    nodeColor_t color_;
-    iterator parent_;
-    iterator left_;
-    iterator right_;
-
-public:
-    node_t()
-        : color_(nodeColor_t::BLACK), parent_(this), left_(this), right_(this) {}
-
-    node_t(keyT&& key, iterator parent, iterator nil)
-        : key_(std::move(key)), color_(nodeColor_t::RED), parent_(parent),
-          left_(nil), right_(nil) {}
-
-    bool isNil() const { return !key_.has_value(); }
-    const keyT& key() const { return key_.value(); }
-    nodeColor_t color() const { return color_; }
-    iterator parent() const { return parent_; }
-    iterator left() const { return left_; }
-    iterator right() const { return right_; }
-
-    iterator grandparent() const;
-    iterator uncle() const;
-    iterator sibling() const;
-    iterator nearNephew() const;
-    iterator farNephew() const;
-
-    void setParent(iterator parent) { parent_ = parent; }
-    void setLeft(iterator left) { left_ = left; }
-    void setRight(iterator right) { right_ = right; }
-    void setColor(nodeColor_t color) { color_ = color; }
-};
-
 template <typename keyT, typename Comp>
 redBlackTree_t<keyT, Comp>::redBlackTree_t(Comp comp)
-    : comp_(std::move(comp)), nil_(std::make_unique<node_t>()), root_(nil()) {}
+    : comp_(std::move(comp)) {}
 
 template <typename keyT, typename Comp>
-redBlackTree_t<keyT, Comp>::~redBlackTree_t() {
-    destroySubtree(root_);
+typename redBlackTree_t<keyT, Comp>::nodeColor_t
+redBlackTree_t<keyT, Comp>::colorOf(NodeId nodeId) const {
+    return nodeId == nil() ? nodeColor_t::BLACK :
+                             tree_.getNode(nodeId).data().color;
 }
 
 template <typename keyT, typename Comp>
-void
-redBlackTree_t<keyT, Comp>::destroySubtree(iterator node) {
-    if (node == nil()) {
-        return;
-    }
-    destroySubtree(node->left());
-    destroySubtree(node->right());
-    delete node;
+typename redBlackTree_t<keyT, Comp>::NodeId
+redBlackTree_t<keyT, Comp>::grandparent(NodeId nodeId) const {
+    const auto& node = tree_.getNode(nodeId);
+    const NodeId parentId = node.parent();
+    return parentId == nil() ? nil() : tree_.getNode(parentId).parent();
 }
 
 template <typename keyT, typename Comp>
-typename redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::node_t::grandparent() const {
-    return parent_->isNil() ? parent_ : parent_->parent();
-}
-
-template <typename keyT, typename Comp>
-typename redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::node_t::uncle() const {
-    iterator grandparent = this->grandparent();
-    if (grandparent->isNil()) {
-        return grandparent;
-    }
-
-    return parent_ == grandparent->left() ? grandparent->right() : grandparent->left();
-}
-
-template <typename keyT, typename Comp>
-typename redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::node_t::sibling() const {
-    if (parent_->isNil()) {
-        return parent_;
-    }
-
-    return this == parent_->left() ? parent_->right() : parent_->left();
-}
-
-template <typename keyT, typename Comp>
-typename redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::node_t::nearNephew() const {
-    iterator sibling = this->sibling();
-    return this == parent_->left() ? sibling->left() : sibling->right();
-}
-
-template <typename keyT, typename Comp>
-typename redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::node_t::farNephew() const {
-    iterator sibling = this->sibling();
-    return this == parent_->left() ? sibling->right() : sibling->left();
-}
-
-template <typename keyT, typename Comp>
-void
-redBlackTree_t<keyT, Comp>::rotateLeft(iterator node) {
-
-    iterator pivot = node->right();
-
-    pivot->setParent(node->parent());
-    if (node->parent() != nil()) {
-        if (node->parent()->left() == node)
-            node->parent()->setLeft(pivot);
-        else
-            node->parent()->setRight(pivot);
-    } else {
-        root_ = pivot;
-    }
-
-    node->setRight(pivot->left());
-    if (pivot->left() != nil()) {
-        pivot->left()->setParent(node);
-    }
-
-    node->setParent(pivot);
-    pivot->setLeft(node);
-}
-
-template <typename keyT, typename Comp>
-void
-redBlackTree_t<keyT, Comp>::rotateRight(iterator node) {
-
-    iterator pivot = node->left();
-
-    pivot->setParent(node->parent());
-    if (node->parent() != nil()) {
-        if (node->parent()->left() == node)
-            node->parent()->setLeft(pivot);
-        else
-            node->parent()->setRight(pivot);
-    } else {
-        root_ = pivot;
-    }
-
-    node->setLeft(pivot->right());
-    if (pivot->right() != nil()) {
-        pivot->right()->setParent(node);
-    }
-
-    node->setParent(pivot);
-    pivot->setRight(node);
-}
-
-template <typename keyT, typename Comp>
-void
-redBlackTree_t<keyT, Comp>::insertCase1(iterator node) {
-    if (node->parent() == nil()) {
-        node->setColor(nodeColor_t::BLACK);
-    } else {
-        insertCase2(node);
-    }
-}
-
-template <typename keyT, typename Comp>
-void
-redBlackTree_t<keyT, Comp>::insertCase2(iterator node) {
-    if (node->parent()->color() == nodeColor_t::BLACK) {
-        return;
-    }
-    insertCase3(node);
-}
-
-template <typename keyT, typename Comp>
-void
-redBlackTree_t<keyT, Comp>::insertCase3(iterator node) {
-    iterator uncle = node->uncle();
-    iterator grandparent = node->grandparent();
-    iterator parent = node->parent();
-
-    if (uncle->color() == nodeColor_t::RED) {
-        parent->setColor(nodeColor_t::BLACK);
-        uncle->setColor(nodeColor_t::BLACK);
-
-        grandparent->setColor(nodeColor_t::RED);
-        insertCase1(grandparent);
-    } else {
-        insertCase4(node);
-    }
-}
-
-template <typename keyT, typename Comp>
-void
-redBlackTree_t<keyT, Comp>::insertCase4(iterator node) {
-    iterator grandparent = node->grandparent();
-    iterator parent = node->parent();
-
-    if (node == parent->right() && parent == grandparent->left()) {
-        rotateLeft(parent);
-        node = node->left();
-    } else if (node == parent->left() && parent == grandparent->right()) {
-        rotateRight(parent);
-        node = node->right();
-    }
-
-    insertCase5(node);
-}
-
-template <typename keyT, typename Comp>
-void
-redBlackTree_t<keyT, Comp>::insertCase5(iterator node) {
-    iterator grandparent = node->grandparent();
-    iterator parent = node->parent();
-
-    parent->setColor(nodeColor_t::BLACK);
-    grandparent->setColor(nodeColor_t::RED);
-
-    if (node == parent->left() && parent == grandparent->left()) {
-        rotateRight(grandparent);
-    } else {
-        rotateLeft(grandparent);
-    }
-}
-
-template <typename keyT, typename Comp>
-typename redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::findInSubtree(const keyT& key, iterator subTreeRoot) const {
-    if (subTreeRoot == nil()) {
+typename redBlackTree_t<keyT, Comp>::NodeId
+redBlackTree_t<keyT, Comp>::uncle(NodeId nodeId) const {
+    const NodeId grandparentId = grandparent(nodeId);
+    if (grandparentId == nil()) {
         return nil();
     }
-    if (comp_(key, subTreeRoot->key())) {
-        return findInSubtree(key, subTreeRoot->left());
+
+    const auto& node = tree_.getNode(nodeId);
+    const auto& grandparent = tree_.getNode(grandparentId);
+    return node.parent() == grandparent.left() ? grandparent.right() :
+                                                 grandparent.left();
+}
+
+template <typename keyT, typename Comp>
+typename redBlackTree_t<keyT, Comp>::NodeId
+redBlackTree_t<keyT, Comp>::sibling(NodeId nodeId, NodeId parentId) const {
+    if (parentId == nil()) {
+        return nil();
     }
-    if (comp_(subTreeRoot->key(), key)) {
-        return findInSubtree(key, subTreeRoot->right());
+
+    const auto& parent = tree_.getNode(parentId);
+    return nodeId == parent.left() ? parent.right() : parent.left();
+}
+
+template <typename keyT, typename Comp>
+typename redBlackTree_t<keyT, Comp>::NodeId
+redBlackTree_t<keyT, Comp>::nearNephew(NodeId nodeId, NodeId parentId) const {
+    const NodeId siblingId = sibling(nodeId, parentId);
+    if (siblingId == nil()) {
+        return nil();
     }
-    return subTreeRoot;
+
+    const auto& sibling = tree_.getNode(siblingId);
+    const auto& parent = tree_.getNode(parentId);
+
+    return nodeId == parent.left() ? sibling.left() : sibling.right();
+}
+
+template <typename keyT, typename Comp>
+typename redBlackTree_t<keyT, Comp>::NodeId
+redBlackTree_t<keyT, Comp>::farNephew(NodeId nodeId, NodeId parentId) const {
+    const NodeId siblingId = sibling(nodeId, parentId);
+    if (siblingId == nil()) {
+        return nil();
+    }
+
+    const auto& sibling = tree_.getNode(siblingId);
+    const auto& parent = tree_.getNode(parentId);
+    return nodeId == parent.left() ? sibling.right() : sibling.left();
+}
+
+template <typename keyT, typename Comp>
+void
+redBlackTree_t<keyT, Comp>::insertCase1(NodeId nodeId) {
+    auto& node = tree_.getNode(nodeId);
+    if (node.parent() == nil()) {
+        node.data().color = nodeColor_t::BLACK;
+    } else {
+        insertCase2(nodeId);
+    }
+}
+
+template <typename keyT, typename Comp>
+void
+redBlackTree_t<keyT, Comp>::insertCase2(NodeId nodeId) {
+    const auto& node = tree_.getNode(nodeId);
+    if (colorOf(node.parent()) == nodeColor_t::BLACK) {
+        return;
+    }
+    insertCase3(nodeId);
+}
+
+template <typename keyT, typename Comp>
+void
+redBlackTree_t<keyT, Comp>::insertCase3(NodeId nodeId) {
+    const auto& node = tree_.getNode(nodeId);
+
+    const NodeId uncleId = uncle(nodeId);
+    const NodeId grandparentId = grandparent(nodeId);
+
+    auto& parent = tree_.getNode(node.parent());
+    auto& grandparent = tree_.getNode(grandparentId);
+
+    if (colorOf(uncleId) == nodeColor_t::RED) {
+        auto& uncle = tree_.getNode(uncleId);
+
+        parent.data().color = nodeColor_t::BLACK;
+        uncle.data().color = nodeColor_t::BLACK;
+        grandparent.data().color = nodeColor_t::RED;
+
+        insertCase1(grandparentId);
+    } else {
+        insertCase4(nodeId);
+    }
+}
+
+template <typename keyT, typename Comp>
+void
+redBlackTree_t<keyT, Comp>::insertCase4(NodeId nodeId) {
+    const auto& node = tree_.getNode(nodeId);
+
+    const NodeId parentId = node.parent();
+    const auto& parent = tree_.getNode(parentId);
+
+    const auto& grandparent = tree_.getNode(parent.parent());
+
+    if (nodeId == parent.right() && parentId == grandparent.left()) {
+        tree_.rotateLeft(parentId);
+        nodeId = node.left();
+    } else if (nodeId == parent.left() && parentId == grandparent.right()) {
+        tree_.rotateRight(parentId);
+        nodeId = node.right();
+    }
+
+    insertCase5(nodeId);
+}
+
+template <typename keyT, typename Comp>
+void
+redBlackTree_t<keyT, Comp>::insertCase5(NodeId nodeId) {
+    const auto& node = tree_.getNode(nodeId);
+
+    const NodeId parentId = node.parent();
+    auto& parent = tree_.getNode(parentId);
+
+    const NodeId grandparentId = parent.parent();
+    auto& grandparent = tree_.getNode(grandparentId);
+
+    parent.data().color = nodeColor_t::BLACK;
+    grandparent.data().color = nodeColor_t::RED;
+
+    if (nodeId == parent.left() && parentId == grandparent.left()) {
+        tree_.rotateRight(grandparentId);
+    } else {
+        tree_.rotateLeft(grandparentId);
+    }
+}
+
+template <typename keyT, typename Comp>
+typename redBlackTree_t<keyT, Comp>::NodeId
+redBlackTree_t<keyT, Comp>::findInSubtree(const keyT& key, NodeId subTreeRootId) const {
+    if (subTreeRootId == nil()) {
+        return nil();
+    }
+    const auto& subTreeRoot = tree_.getNode(subTreeRootId);
+    if (comp_(key, subTreeRoot.data().key)) {
+        return findInSubtree(key, subTreeRoot.left());
+    }
+    if (comp_(subTreeRoot.data().key, key)) {
+        return findInSubtree(key, subTreeRoot.right());
+    }
+    return subTreeRootId;
 }
 
 template <typename keyT, typename Comp>
 bool
 redBlackTree_t<keyT, Comp>::find(const keyT& key) const {
-    return findInSubtree(key, root_) != nil();
+    return findInSubtree(key, tree_.root()) != nil();
 }
 
 template <typename keyT, typename Comp>
 std::optional<keyT>
 redBlackTree_t<keyT, Comp>::lowerBound(const keyT& key) const {
-    iterator current = root_;
-    iterator result = nil();
-    while (current != nil()) {
-        if (comp_(current->key(), key)) {
-            current = current->right();
+    NodeId currentId = tree_.root();
+    NodeId resultId = nil();
+    while (currentId != nil()) {
+        const auto& current = tree_.getNode(currentId);
+        if (comp_(current.data().key, key)) {
+            currentId = current.right();
         } else {
-            result = current;
-            current = current->left();
+            resultId = currentId;
+            currentId = current.left();
         }
     }
-    if (result == nil()) {
+    if (resultId == nil()) {
         return std::nullopt;
     }
-    return result->key();
+    return tree_.getNode(resultId).data().key;
 }
 
 template <typename keyT, typename Comp>
 std::optional<keyT>
 redBlackTree_t<keyT, Comp>::upperBound(const keyT& key) const {
-    iterator current = root_;
-    iterator result = nil();
-    while (current != nil()) {
-        if (comp_(key, current->key())) {
-            result = current;
-            current = current->left();
+    NodeId currentId = tree_.root();
+    NodeId resultId = nil();
+    while (currentId != nil()) {
+        const auto& current = tree_.getNode(currentId);
+        if (comp_(key, current.data().key)) {
+            resultId = currentId;
+            currentId = current.left();
         } else {
-            current = current->right();
+            currentId = current.right();
         }
     }
-    if (result == nil()) {
+    if (resultId == nil()) {
         return std::nullopt;
     }
-    return result->key();
+    return tree_.getNode(resultId).data().key;
 }
 
 template <typename keyT, typename Comp>
-typename redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::successor(iterator node) const {
-    if (node == nil()) {
+typename redBlackTree_t<keyT, Comp>::NodeId
+redBlackTree_t<keyT, Comp>::successor(NodeId nodeId) const {
+    if (nodeId == nil()) {
         return nil();
     }
-    if (node->right() != nil()) {
-        node = node->right();
-        while (node->left() != nil()) {
-            node = node->left();
+    const auto& node = tree_.getNode(nodeId);
+    if (node.right() != nil()) {
+        return treeMinKeyNode(node.right());
+    }
+
+    NodeId parentId = node.parent();
+    while (parentId != nil()) {
+        const auto& parent = tree_.getNode(parentId);
+        if (nodeId != parent.right()) {
+            break;
         }
-        return node;
+        nodeId = parentId;
+        parentId = parent.parent();
     }
-    iterator parent = node->parent();
-    while (parent != nil() && node == parent->right()) {
-        node = parent;
-        parent = parent->parent();
-    }
-    return parent;
+    return parentId;
 }
 
 template <typename keyT, typename Comp>
 void
 redBlackTree_t<keyT, Comp>::insertInSubtree(
-    keyT&& key, iterator subtreeRoot, iterator parent, ChildSide side) {
-    if (subtreeRoot == nil()) {
-        iterator newNode = new node_t(std::move(key), parent, nil());
-        if (parent == nil()) {
-            root_ = newNode;
-        } else if (side == ChildSide::LEFT) {
-            parent->setLeft(newNode);
+    keyT&& key, NodeId subtreeRootId, NodeId parentId, ChildSide side) {
+    if (subtreeRootId == nil()) {
+        NodeId newNodeId;
+        if (parentId == nil()) {
+            newNodeId = tree_.addRoot(NodeData{std::move(key)});
         } else {
-            parent->setRight(newNode);
+            newNodeId = tree_.allocateNode(NodeData{std::move(key)});
+            auto& newNode = tree_.getNode(newNodeId);
+            auto& parent = tree_.getNode(parentId);
+            newNode.setParent(parentId);
+            if (side == ChildSide::LEFT) {
+                parent.setLeft(newNodeId);
+            } else {
+                parent.setRight(newNodeId);
+            }
         }
-        insertCase1(newNode);
+        insertCase1(newNodeId);
         return;
     }
 
-    if (comp_(key, subtreeRoot->key())) {
-        return insertInSubtree(std::move(key), subtreeRoot->left(), subtreeRoot, ChildSide::LEFT);
+    const auto& subtreeRoot = tree_.getNode(subtreeRootId);
+    if (comp_(key, subtreeRoot.data().key)) {
+        return insertInSubtree(std::move(key), subtreeRoot.left(), subtreeRootId, ChildSide::LEFT);
     }
-    if (comp_(subtreeRoot->key(), key)) {
-        return insertInSubtree(std::move(key), subtreeRoot->right(), subtreeRoot, ChildSide::RIGHT);
+    if (comp_(subtreeRoot.data().key, key)) {
+        return insertInSubtree(std::move(key), subtreeRoot.right(), subtreeRootId, ChildSide::RIGHT);
     }
 }
 
 template <typename keyT, typename Comp>
 void
 redBlackTree_t<keyT, Comp>::insert(keyT key) {
-    return insertInSubtree(std::move(key), root_, nil(), ChildSide::LEFT);
+    return insertInSubtree(std::move(key), tree_.root(), nil(), ChildSide::LEFT);
 }
 
 template <typename keyT, typename Comp>
 void
 redBlackTree_t<keyT, Comp>::erase(const keyT& key) {
-    iterator rmNode = findInSubtree(key, root_);
-    deleteNode(rmNode);
+    const NodeId rmNodeId = findInSubtree(key, tree_.root());
+    deleteNode(rmNodeId);
 }
 
 template <typename keyT, typename Comp>
-typename redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::treeMaxKeyNode(iterator node) {
-    if (node == nil() || node->right() == nil()) {
-        return node;
+typename redBlackTree_t<keyT, Comp>::NodeId
+redBlackTree_t<keyT, Comp>::treeMaxKeyNode(NodeId nodeId) const {
+    if (nodeId == nil()) {
+        return nil();
     }
-    return treeMaxKeyNode(node->right());
+    const auto& node = tree_.getNode(nodeId);
+    return node.right() == nil() ? nodeId : treeMaxKeyNode(node.right());
 }
 
 template <typename keyT, typename Comp>
-typename redBlackTree_t<keyT, Comp>::iterator
-redBlackTree_t<keyT, Comp>::treeMinKeyNode(iterator node) {
-    if (node == nil() || node->left() == nil()) {
-        return node;
+typename redBlackTree_t<keyT, Comp>::NodeId
+redBlackTree_t<keyT, Comp>::treeMinKeyNode(NodeId nodeId) const {
+    if (nodeId == nil()) {
+        return nil();
     }
-    return treeMinKeyNode(node->left());
+    const auto& node = tree_.getNode(nodeId);
+    return node.left() == nil() ? nodeId : treeMinKeyNode(node.left());
+}
+
+template <typename keyT, typename Comp>
+std::tuple<typename redBlackTree_t<keyT, Comp>::NodeId,
+           typename redBlackTree_t<keyT, Comp>::NodeId,
+           typename redBlackTree_t<keyT, Comp>::nodeColor_t>
+redBlackTree_t<keyT, Comp>::removeNodeWithTwoChildren(NodeId rmNodeId) {
+    const auto& rmNode = tree_.getNode(rmNodeId);
+    const NodeId successorId = treeMinKeyNode(rmNode.right());
+    auto& successor = tree_.getNode(successorId);
+
+    const nodeColor_t removableNodeOriginalColor = successor.data().color;
+    const NodeId replacementId = successor.right();
+    const NodeId replacementParentId = successor.parent();
+
+    if (successorId != rmNode.right()) {
+        tree_.transplant(successorId, replacementId);
+        successor.setRight(rmNode.right());
+        tree_.getNode(rmNode.right()).setParent(successorId);
+    }
+
+    tree_.transplant(rmNodeId, successorId);
+    successor.setLeft(rmNode.left());
+    tree_.getNode(successor.left()).setParent(successorId);
+    successor.data().color = rmNode.data().color;
+
+    return {replacementId, successorId == rmNode.right() ? successorId : replacementParentId,
+            removableNodeOriginalColor};
 }
 
 template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT, Comp>::transplant(iterator replaceableNode, iterator newNode) {
-    iterator parent = replaceableNode->parent();
+redBlackTree_t<keyT, Comp>::deleteFixup(NodeId extraBlackNodeId, NodeId parentId) {
+    while (extraBlackNodeId != tree_.root() && colorOf(extraBlackNodeId) == nodeColor_t::BLACK) {
+        auto& parent = tree_.getNode(parentId);
+        NodeId siblingId = sibling(extraBlackNodeId, parentId);
 
-    if (parent == nil()) {
-        root_ = newNode;
-    } else if (replaceableNode == parent->left()) {
-        parent->setLeft(newNode);
-    } else {
-        parent->setRight(newNode);
-    }
-    newNode->setParent(parent);
-}
-
-template <typename keyT, typename Comp>
-std::pair<typename redBlackTree_t<keyT, Comp>::iterator,
-          typename redBlackTree_t<keyT, Comp>::nodeColor_t>
-redBlackTree_t<keyT, Comp>::removeNodeWithTwoChildren(iterator rmNode) {
-    iterator successor = treeMinKeyNode(rmNode->right());
-
-    nodeColor_t removableNodeOriginalColor = successor->color();
-    iterator replacement = successor->right();
-
-    if (successor != rmNode->right()) {
-        transplant(successor, replacement);
-        successor->setRight(rmNode->right());
-        rmNode->right()->setParent(successor);
-    } else {
-        replacement->setParent(successor);
-    }
-    transplant(rmNode, successor);
-    successor->setLeft(rmNode->left());
-    successor->left()->setParent(successor);
-    successor->setColor(rmNode->color());
-
-    return {replacement, removableNodeOriginalColor};
-}
-
-template <typename keyT, typename Comp>
-void
-redBlackTree_t<keyT, Comp>::deleteFixup(iterator extraBlackNode) {
-    while (extraBlackNode != root_ && extraBlackNode->color() == nodeColor_t::BLACK) {
-        iterator parent = extraBlackNode->parent();
-
-        if (extraBlackNode->sibling()->color() == nodeColor_t::RED) {
-            extraBlackNode->sibling()->setColor(nodeColor_t::BLACK);
-            parent->setColor(nodeColor_t::RED);
-            rotateParent(extraBlackNode);
+        // A non-root position with a black deficit has a live sibling,
+        // so comparing its ID with parent.left() also works for a missing child.
+        if (colorOf(siblingId) == nodeColor_t::RED) {
+            tree_.getNode(siblingId).data().color = nodeColor_t::BLACK;
+            parent.data().color = nodeColor_t::RED;
+            rotateParent(extraBlackNodeId, parentId);
+            siblingId = sibling(extraBlackNodeId, parentId);
         }
 
-        if (extraBlackNode->nearNephew()->color() == nodeColor_t::BLACK &&
-            extraBlackNode->farNephew()->color() == nodeColor_t::BLACK) {
-            extraBlackNode->sibling()->setColor(nodeColor_t::RED);
-            extraBlackNode = parent;
+        const NodeId nearNephewId = nearNephew(extraBlackNodeId, parentId);
+        NodeId farNephewId = farNephew(extraBlackNodeId, parentId);
+        if (colorOf(nearNephewId) == nodeColor_t::BLACK &&
+            colorOf(farNephewId) == nodeColor_t::BLACK) {
+            tree_.getNode(siblingId).data().color = nodeColor_t::RED;
+            extraBlackNodeId = parentId;
+            parentId = parent.parent();
         } else {
-            if (extraBlackNode->farNephew()->color() == nodeColor_t::BLACK) {
-                extraBlackNode->nearNephew()->setColor(nodeColor_t::BLACK);
-                extraBlackNode->sibling()->setColor(nodeColor_t::RED);
+            if (colorOf(farNephewId) == nodeColor_t::BLACK) {
+                tree_.getNode(nearNephewId).data().color = nodeColor_t::BLACK;
+                tree_.getNode(siblingId).data().color = nodeColor_t::RED;
 
-                rotateSibling(extraBlackNode);
+                rotateSibling(extraBlackNodeId, parentId);
+                siblingId = sibling(extraBlackNodeId, parentId);
+                farNephewId = farNephew(extraBlackNodeId, parentId);
             }
-            extraBlackNode->sibling()->setColor(parent->color());
-            parent->setColor(nodeColor_t::BLACK);
-            extraBlackNode->farNephew()->setColor(nodeColor_t::BLACK);
+            tree_.getNode(siblingId).data().color = parent.data().color;
+            parent.data().color = nodeColor_t::BLACK;
+            tree_.getNode(farNephewId).data().color = nodeColor_t::BLACK;
 
-            rotateParent(extraBlackNode);
+            rotateParent(extraBlackNodeId, parentId);
 
-            extraBlackNode = root_;
+            extraBlackNodeId = tree_.root();
         }
     }
-    extraBlackNode->setColor(nodeColor_t::BLACK);
-}
-
-template <typename keyT, typename Comp>
-void
-redBlackTree_t<keyT, Comp>::rotateParent(iterator node) {
-    iterator parent = node->parent();
-    if (parent == nil()) {
-        return;
-    }
-
-    if (node == parent->left()) {
-        rotateLeft(parent);
-    } else {
-        rotateRight(parent);
+    if (extraBlackNodeId != nil()) {
+        tree_.getNode(extraBlackNodeId).data().color = nodeColor_t::BLACK;
     }
 }
 
 template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT, Comp>::rotateSibling(iterator node) {
-    iterator sibling = node->sibling();
-    if (sibling == nil()) {
+redBlackTree_t<keyT, Comp>::rotateParent(NodeId nodeId, NodeId parentId) {
+    if (parentId == nil()) {
         return;
     }
 
-    iterator parent = node->parent();
-    if (node == parent->left()) {
-        rotateRight(sibling);
+    const auto& parent = tree_.getNode(parentId);
+    if (nodeId == parent.left()) {
+        tree_.rotateLeft(parentId);
     } else {
-        rotateLeft(sibling);
+        tree_.rotateRight(parentId);
     }
 }
 
 template <typename keyT, typename Comp>
 void
-redBlackTree_t<keyT, Comp>::deleteNode(iterator rmNode) {
-    if (rmNode == nil()) {
+redBlackTree_t<keyT, Comp>::rotateSibling(NodeId nodeId, NodeId parentId) {
+    const NodeId siblingId = sibling(nodeId, parentId);
+    if (siblingId == nil()) {
         return;
     }
-    nodeColor_t removableNodeOriginalColor = rmNode->color();
-    iterator replacement = nil();
 
-    if (rmNode->left() == nil()) {
-        replacement = rmNode->right();
-        transplant(rmNode, replacement);
-    } else if (rmNode->right() == nil()) {
-        replacement = rmNode->left();
-        transplant(rmNode, replacement);
+    const auto& parent = tree_.getNode(parentId);
+    if (nodeId == parent.left()) {
+        tree_.rotateRight(siblingId);
     } else {
-        std::tie(replacement, removableNodeOriginalColor) = removeNodeWithTwoChildren(rmNode);
+        tree_.rotateLeft(siblingId);
+    }
+}
+
+template <typename keyT, typename Comp>
+void
+redBlackTree_t<keyT, Comp>::deleteNode(NodeId rmNodeId) {
+    if (rmNodeId == nil()) {
+        return;
+    }
+    auto& rmNode = tree_.getNode(rmNodeId);
+    nodeColor_t removableNodeOriginalColor = rmNode.data().color;
+
+    NodeId replacementId = nil();
+    NodeId replacementParentId = rmNode.parent();
+
+    tree_.prepareRelease();
+
+    if (rmNode.left() == nil()) {
+        replacementId = rmNode.right();
+        tree_.transplant(rmNodeId, replacementId);
+    } else if (rmNode.right() == nil()) {
+        replacementId = rmNode.left();
+        tree_.transplant(rmNodeId, replacementId);
+    } else {
+        std::tie(replacementId, replacementParentId, removableNodeOriginalColor) =
+            removeNodeWithTwoChildren(rmNodeId);
     }
 
     if (removableNodeOriginalColor == nodeColor_t::BLACK) {
-        deleteFixup(replacement);
+        deleteFixup(replacementId, replacementParentId);
     }
 
-    delete(rmNode);
+    rmNode.setLeft(nil());
+    rmNode.setRight(nil());
+    tree_.releaseNode(rmNodeId);
 }
 
 } // namespace red_black_tree
