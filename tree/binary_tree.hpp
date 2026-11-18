@@ -45,6 +45,13 @@ public:
     NodeId addRoot(T value);
     NodeId allocateNode(T&& value);
     void releaseNode(NodeId node);
+
+    void rotateLeft(NodeId node);
+    void rotateRight(NodeId node);
+
+    // Replace the incoming link to oldRoot. INVALID_NODE removes that link.
+    // The caller handles child links and any previous link to replacement.
+    void transplant(NodeId oldRoot, NodeId replacement);
 };
 
 template <typename T>
@@ -159,6 +166,71 @@ void BinaryTree<T>::releaseNode(NodeId nodeId) {
     if (rootId_ == nodeId) {
         rootId_ = INVALID_NODE;
     }
+}
+
+template <typename T>
+void BinaryTree<T>::rotateLeft(NodeId nodeId) {
+    auto& node = getNode(nodeId);
+    const NodeId pivotId = node.right();
+    auto& pivot = getNode(pivotId);
+
+    const NodeId middleId = pivot.left();
+
+    transplant(nodeId, pivotId);
+    node.setRight(middleId);
+    if (middleId != INVALID_NODE) {
+        getNode(middleId).setParent(nodeId);
+    }
+
+    node.setParent(pivotId);
+    pivot.setLeft(nodeId);
+}
+
+template <typename T>
+void BinaryTree<T>::rotateRight(NodeId nodeId) {
+    auto& node = getNode(nodeId);
+    const NodeId pivotId = node.left();
+    auto& pivot = getNode(pivotId);
+
+    const NodeId middleId = pivot.right();
+
+    transplant(nodeId, pivotId);
+    node.setLeft(middleId);
+    if (middleId != INVALID_NODE) {
+        getNode(middleId).setParent(nodeId);
+    }
+
+    node.setParent(pivotId);
+    pivot.setRight(nodeId);
+}
+
+template <typename T>
+void BinaryTree<T>::transplant(NodeId replaceableNodeId, NodeId newNodeId) {
+    if (replaceableNodeId == newNodeId) {
+        return;
+    }
+    auto& replaceableNode = getNode(replaceableNodeId);
+    auto* newNode = newNodeId == INVALID_NODE ? nullptr : &getNode(newNodeId);
+
+    const NodeId parentId = replaceableNode.parent();
+
+    if (replaceableNodeId == rootId_) {
+        rootId_ = newNodeId;
+    } else {
+        auto& parent = getNode(parentId);
+        if (parent.left() == replaceableNodeId) {
+            parent.setLeft(newNodeId);
+        } else if (parent.right() == replaceableNodeId) {
+            parent.setRight(newNodeId);
+        } else {
+            throw std::logic_error("BinaryTree: parent does not link to node");
+        }
+    }
+
+    if (newNode) {
+        newNode->setParent(parentId);
+    }
+    replaceableNode.setParent(INVALID_NODE);
 }
 
 } // namespace general_functions
