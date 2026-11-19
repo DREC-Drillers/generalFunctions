@@ -26,6 +26,11 @@ TEST(RedBlackTree, RandomInsertEraseAndBounds) {
         int key = int(random() % 101) - 50;
         if (random() % 2) { tree.insert(key); reference.insert(key); }
         else { tree.erase(key); reference.erase(key); }
+        std::size_t index = 0;
+        for (int expected : reference) {
+            ASSERT_EQ(tree.select(index), expected);
+            ++index;
+        }
         for (int query = -51; query <= 51; ++query) {
             ASSERT_EQ(tree.find(query), reference.count(query) != 0);
             auto lower = reference.lower_bound(query);
@@ -51,6 +56,8 @@ TEST(RedBlackTree, BoundResultSurvivesTreeDestruction) {
         EXPECT_EQ(tree.countKeysLessThan(4), 1U);
         EXPECT_EQ(tree.countKeysLessThanOrEqual(4), 2U);
         EXPECT_EQ(tree.countKeysLessThan(1), 3U);
+        EXPECT_EQ(tree.select(0), 8);
+        EXPECT_EQ(tree.select(2), 2);
         return tree.lowerBound(7);
     }();
     EXPECT_EQ(result, 4);
@@ -145,9 +152,11 @@ TEST(RedBlackTree, EmptyDuplicatesAndIntegerLimits) {
     EXPECT_FALSE(tree.lowerBound(0));
     EXPECT_FALSE(tree.upperBound(0));
     EXPECT_EQ(tree.countKeysLessThan(0), 0U);
+    EXPECT_THROW(tree.select(0), std::out_of_range);
     std::set<int> keys{std::numeric_limits<int>::min(), 0, std::numeric_limits<int>::max()};
     for (int key : keys) for (int i=0; i<10; ++i) tree.insert(key);
     verify(tree, keys);
+    EXPECT_THROW(tree.select(tree.size()), std::out_of_range);
     EXPECT_EQ(tree.lowerBound(*keys.begin()), *keys.begin());
     EXPECT_FALSE(tree.upperBound(*keys.rbegin()));
     for (int key : keys) { tree.erase(key); EXPECT_FALSE(tree.find(key)); }

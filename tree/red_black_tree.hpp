@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <stdexcept>
 #include <tuple>
 #include <utility>
 
@@ -81,8 +82,11 @@ public:
 
 public:
     std::size_t size() const noexcept { return tree_.size(); }
+    const keyT& select(std::size_t index) const;
+
     std::size_t countKeysLessThan(const keyT& key) const;
     std::size_t countKeysLessThanOrEqual(const keyT& key) const;
+
     std::optional<keyT> lowerBound(const keyT& key) const;
     std::optional<keyT> upperBound(const keyT& key) const;
 
@@ -336,6 +340,28 @@ std::size_t redBlackTree_t<keyT, Comp>::countKeysUpTo(
         }
     }
     return count;
+}
+
+template <typename keyT, typename Comp>
+const keyT& redBlackTree_t<keyT, Comp>::select(std::size_t index) const {
+    if (index >= size()) {
+        throw std::out_of_range("RBTree: sorted index out of range");
+    }
+
+    NodeId currentId = tree_.root();
+    while (true) {
+        const auto& current = tree_.getNode(currentId);
+        const auto leftSubtreeSize = subtreeSize(current.left());
+
+        if (index < leftSubtreeSize) {
+            currentId = current.left();
+        } else if (index == leftSubtreeSize) {
+            return current.data().key();
+        } else {
+            index -= leftSubtreeSize + 1;
+            currentId = current.right();
+        }
+    }
 }
 
 template <typename keyT, typename Comp>
