@@ -60,7 +60,7 @@ void verify(Tree& tree, const std::set<int>& expected) {
     ASSERT_EQ(root == nil, expected.empty());
 
     auto colorOf = [&](NodeId id) {
-        return id == nil ? Color::BLACK : storage.getNode(id).data().color;
+        return id == nil ? Color::BLACK : storage.getNode(id).data().color();
     };
     ASSERT_EQ(colorOf(root), Color::BLACK);
     std::unordered_set<NodeId> visited;
@@ -75,15 +75,15 @@ void verify(Tree& tree, const std::set<int>& expected) {
         }
         const auto& node = storage.getNode(id);
         EXPECT_EQ(node.parent(), parent);
-        if (node.data().color == Color::RED) {
+        if (node.data().color() == Color::RED) {
             EXPECT_EQ(colorOf(node.left()), Color::BLACK);
             EXPECT_EQ(colorOf(node.right()), Color::BLACK);
         }
         int left = walk(node.left(), id);
-        keys.push_back(node.data().key);
+        keys.push_back(node.data().key());
         int right = walk(node.right(), id);
         EXPECT_EQ(left, right);
-        return left + (node.data().color == Color::BLACK);
+        return left + (node.data().color() == Color::BLACK);
     };
     walk(root, nil);
     EXPECT_EQ(keys, std::vector<int>(expected.begin(), expected.end()));
@@ -152,11 +152,11 @@ TEST(RedBlackTree, PrivateTraversalHelpers) {
     auto nodeId = tree.treeMinKeyNode(root);
     for (int key = 1; key <= 7; ++key) {
         ASSERT_NE(nodeId, tree.nil());
-        EXPECT_EQ(tree.tree_.getNode(nodeId).data().key, key);
+        EXPECT_EQ(tree.tree_.getNode(nodeId).data().key(), key);
         nodeId = tree.successor(nodeId);
     }
     EXPECT_EQ(nodeId, tree.nil());
-    EXPECT_EQ(tree.tree_.getNode(tree.treeMaxKeyNode(root)).data().key, 7);
+    EXPECT_EQ(tree.tree_.getNode(tree.treeMaxKeyNode(root)).data().key(), 7);
     EXPECT_EQ(tree.grandparent(root), tree.nil());
     EXPECT_EQ(tree.uncle(root), tree.nil());
     EXPECT_EQ(tree.sibling(root, tree.nil()), tree.nil());

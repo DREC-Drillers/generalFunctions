@@ -15,9 +15,17 @@ private:
     enum class nodeColor_t {RED, BLACK};
     enum class ChildSide {LEFT, RIGHT};
 
-    struct NodeData {
-        keyT key;
-        nodeColor_t color = nodeColor_t::RED;
+    class NodeData {
+    private:
+        keyT key_;
+        nodeColor_t color_ = nodeColor_t::RED;
+
+    public:
+        explicit NodeData(keyT&& key) : key_(std::move(key)) {}
+
+        const keyT& key() const noexcept { return key_; }
+        nodeColor_t color() const noexcept { return color_; }
+        void setColor(nodeColor_t color) noexcept { color_ = color; }
     };
 
     using Tree = general_functions::BinaryTree<NodeData>;
@@ -76,7 +84,7 @@ template <typename keyT, typename Comp>
 typename redBlackTree_t<keyT, Comp>::nodeColor_t
 redBlackTree_t<keyT, Comp>::colorOf(NodeId nodeId) const {
     return nodeId == nil() ? nodeColor_t::BLACK :
-                             tree_.getNode(nodeId).data().color;
+                             tree_.getNode(nodeId).data().color();
 }
 
 template <typename keyT, typename Comp>
@@ -144,7 +152,7 @@ void
 redBlackTree_t<keyT, Comp>::insertCase1(NodeId nodeId) {
     auto& node = tree_.getNode(nodeId);
     if (node.parent() == nil()) {
-        node.data().color = nodeColor_t::BLACK;
+        node.data().setColor(nodeColor_t::BLACK);
     } else {
         insertCase2(nodeId);
     }
@@ -174,9 +182,9 @@ redBlackTree_t<keyT, Comp>::insertCase3(NodeId nodeId) {
     if (colorOf(uncleId) == nodeColor_t::RED) {
         auto& uncle = tree_.getNode(uncleId);
 
-        parent.data().color = nodeColor_t::BLACK;
-        uncle.data().color = nodeColor_t::BLACK;
-        grandparent.data().color = nodeColor_t::RED;
+        parent.data().setColor(nodeColor_t::BLACK);
+        uncle.data().setColor(nodeColor_t::BLACK);
+        grandparent.data().setColor(nodeColor_t::RED);
 
         insertCase1(grandparentId);
     } else {
@@ -216,8 +224,8 @@ redBlackTree_t<keyT, Comp>::insertCase5(NodeId nodeId) {
     const NodeId grandparentId = parent.parent();
     auto& grandparent = tree_.getNode(grandparentId);
 
-    parent.data().color = nodeColor_t::BLACK;
-    grandparent.data().color = nodeColor_t::RED;
+    parent.data().setColor(nodeColor_t::BLACK);
+    grandparent.data().setColor(nodeColor_t::RED);
 
     if (nodeId == parent.left() && parentId == grandparent.left()) {
         tree_.rotateRight(grandparentId);
@@ -233,10 +241,10 @@ redBlackTree_t<keyT, Comp>::findInSubtree(const keyT& key, NodeId subTreeRootId)
         return nil();
     }
     const auto& subTreeRoot = tree_.getNode(subTreeRootId);
-    if (comp_(key, subTreeRoot.data().key)) {
+    if (comp_(key, subTreeRoot.data().key())) {
         return findInSubtree(key, subTreeRoot.left());
     }
-    if (comp_(subTreeRoot.data().key, key)) {
+    if (comp_(subTreeRoot.data().key(), key)) {
         return findInSubtree(key, subTreeRoot.right());
     }
     return subTreeRootId;
@@ -255,7 +263,7 @@ redBlackTree_t<keyT, Comp>::lowerBound(const keyT& key) const {
     NodeId resultId = nil();
     while (currentId != nil()) {
         const auto& current = tree_.getNode(currentId);
-        if (comp_(current.data().key, key)) {
+        if (comp_(current.data().key(), key)) {
             currentId = current.right();
         } else {
             resultId = currentId;
@@ -265,7 +273,7 @@ redBlackTree_t<keyT, Comp>::lowerBound(const keyT& key) const {
     if (resultId == nil()) {
         return std::nullopt;
     }
-    return tree_.getNode(resultId).data().key;
+    return tree_.getNode(resultId).data().key();
 }
 
 template <typename keyT, typename Comp>
@@ -275,7 +283,7 @@ redBlackTree_t<keyT, Comp>::upperBound(const keyT& key) const {
     NodeId resultId = nil();
     while (currentId != nil()) {
         const auto& current = tree_.getNode(currentId);
-        if (comp_(key, current.data().key)) {
+        if (comp_(key, current.data().key())) {
             resultId = currentId;
             currentId = current.left();
         } else {
@@ -285,7 +293,7 @@ redBlackTree_t<keyT, Comp>::upperBound(const keyT& key) const {
     if (resultId == nil()) {
         return std::nullopt;
     }
-    return tree_.getNode(resultId).data().key;
+    return tree_.getNode(resultId).data().key();
 }
 
 template <typename keyT, typename Comp>
@@ -335,10 +343,10 @@ redBlackTree_t<keyT, Comp>::insertInSubtree(
     }
 
     const auto& subtreeRoot = tree_.getNode(subtreeRootId);
-    if (comp_(key, subtreeRoot.data().key)) {
+    if (comp_(key, subtreeRoot.data().key())) {
         return insertInSubtree(std::move(key), subtreeRoot.left(), subtreeRootId, ChildSide::LEFT);
     }
-    if (comp_(subtreeRoot.data().key, key)) {
+    if (comp_(subtreeRoot.data().key(), key)) {
         return insertInSubtree(std::move(key), subtreeRoot.right(), subtreeRootId, ChildSide::RIGHT);
     }
 }
@@ -376,7 +384,7 @@ redBlackTree_t<keyT, Comp>::treeMinKeyNode(NodeId nodeId) const {
     return node.left() == nil() ? nodeId : treeMinKeyNode(node.left());
 }
 
-template <typename keyT, typename Comp>
+template <typename keyT, typename Comp> //FIXME
 std::tuple<typename redBlackTree_t<keyT, Comp>::NodeId,
            typename redBlackTree_t<keyT, Comp>::NodeId,
            typename redBlackTree_t<keyT, Comp>::nodeColor_t>
@@ -385,7 +393,7 @@ redBlackTree_t<keyT, Comp>::removeNodeWithTwoChildren(NodeId rmNodeId) {
     const NodeId successorId = treeMinKeyNode(rmNode.right());
     auto& successor = tree_.getNode(successorId);
 
-    const nodeColor_t removableNodeOriginalColor = successor.data().color;
+    const nodeColor_t removableNodeOriginalColor = successor.data().color();
     const NodeId replacementId = successor.right();
     const NodeId replacementParentId = successor.parent();
 
@@ -398,13 +406,13 @@ redBlackTree_t<keyT, Comp>::removeNodeWithTwoChildren(NodeId rmNodeId) {
     tree_.transplant(rmNodeId, successorId);
     successor.setLeft(rmNode.left());
     tree_.getNode(successor.left()).setParent(successorId);
-    successor.data().color = rmNode.data().color;
+    successor.data().setColor(rmNode.data().color());
 
     return {replacementId, successorId == rmNode.right() ? successorId : replacementParentId,
             removableNodeOriginalColor};
 }
 
-template <typename keyT, typename Comp>
+template <typename keyT, typename Comp> //FIXME
 void
 redBlackTree_t<keyT, Comp>::deleteFixup(NodeId extraBlackNodeId, NodeId parentId) {
     while (extraBlackNodeId != tree_.root() && colorOf(extraBlackNodeId) == nodeColor_t::BLACK) {
@@ -414,8 +422,8 @@ redBlackTree_t<keyT, Comp>::deleteFixup(NodeId extraBlackNodeId, NodeId parentId
         // A non-root position with a black deficit has a live sibling,
         // so comparing its ID with parent.left() also works for a missing child.
         if (colorOf(siblingId) == nodeColor_t::RED) {
-            tree_.getNode(siblingId).data().color = nodeColor_t::BLACK;
-            parent.data().color = nodeColor_t::RED;
+            tree_.getNode(siblingId).data().setColor(nodeColor_t::BLACK);
+            parent.data().setColor(nodeColor_t::RED);
             rotateParent(extraBlackNodeId, parentId);
             siblingId = sibling(extraBlackNodeId, parentId);
         }
@@ -424,21 +432,21 @@ redBlackTree_t<keyT, Comp>::deleteFixup(NodeId extraBlackNodeId, NodeId parentId
         NodeId farNephewId = farNephew(extraBlackNodeId, parentId);
         if (colorOf(nearNephewId) == nodeColor_t::BLACK &&
             colorOf(farNephewId) == nodeColor_t::BLACK) {
-            tree_.getNode(siblingId).data().color = nodeColor_t::RED;
+            tree_.getNode(siblingId).data().setColor(nodeColor_t::RED);
             extraBlackNodeId = parentId;
             parentId = parent.parent();
         } else {
             if (colorOf(farNephewId) == nodeColor_t::BLACK) {
-                tree_.getNode(nearNephewId).data().color = nodeColor_t::BLACK;
-                tree_.getNode(siblingId).data().color = nodeColor_t::RED;
+                tree_.getNode(nearNephewId).data().setColor(nodeColor_t::BLACK);
+                tree_.getNode(siblingId).data().setColor(nodeColor_t::RED);
 
                 rotateSibling(extraBlackNodeId, parentId);
                 siblingId = sibling(extraBlackNodeId, parentId);
                 farNephewId = farNephew(extraBlackNodeId, parentId);
             }
-            tree_.getNode(siblingId).data().color = parent.data().color;
-            parent.data().color = nodeColor_t::BLACK;
-            tree_.getNode(farNephewId).data().color = nodeColor_t::BLACK;
+            tree_.getNode(siblingId).data().setColor(parent.data().color());
+            parent.data().setColor(nodeColor_t::BLACK);
+            tree_.getNode(farNephewId).data().setColor(nodeColor_t::BLACK);
 
             rotateParent(extraBlackNodeId, parentId);
 
@@ -446,7 +454,7 @@ redBlackTree_t<keyT, Comp>::deleteFixup(NodeId extraBlackNodeId, NodeId parentId
         }
     }
     if (extraBlackNodeId != nil()) {
-        tree_.getNode(extraBlackNodeId).data().color = nodeColor_t::BLACK;
+        tree_.getNode(extraBlackNodeId).data().setColor(nodeColor_t::BLACK);
     }
 }
 
@@ -488,7 +496,7 @@ redBlackTree_t<keyT, Comp>::deleteNode(NodeId rmNodeId) {
         return;
     }
     auto& rmNode = tree_.getNode(rmNodeId);
-    nodeColor_t removableNodeOriginalColor = rmNode.data().color;
+    nodeColor_t removableNodeOriginalColor = rmNode.data().color();
 
     NodeId replacementId = nil();
     NodeId replacementParentId = rmNode.parent();
