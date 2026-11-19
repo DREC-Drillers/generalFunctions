@@ -10,13 +10,13 @@ if(TARGET GeneralFunctions::geometry)
     message(FATAL_ERROR "Requesting lexer unexpectedly imported geometry")
 endif()
 
-add_executable(consumer ../lexer_smoke.cpp)
+add_executable(consumer lexer_consumer.cpp)
 target_link_libraries(consumer PRIVATE GeneralFunctions::lexer)
 
 if(TEST_GEOMETRY)
     find_package(GeneralFunctions CONFIG REQUIRED COMPONENTS geometry)
 
-    add_executable(geometry_consumer ../geometry_smoke.cpp)
+    add_executable(geometry_consumer geometry_consumer.cpp)
     set_target_properties(geometry_consumer PROPERTIES
         CXX_SCAN_FOR_MODULES ON
         CXX_EXTENSIONS OFF)
