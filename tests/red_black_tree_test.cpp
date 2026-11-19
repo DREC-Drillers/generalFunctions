@@ -32,6 +32,8 @@ TEST(RedBlackTree, RandomInsertEraseAndBounds) {
             auto upper = reference.upper_bound(query);
             ASSERT_EQ(tree.countKeysLessThan(query),
                       static_cast<std::size_t>(std::distance(reference.begin(), lower)));
+            ASSERT_EQ(tree.countKeysLessThanOrEqual(query),
+                      static_cast<std::size_t>(std::distance(reference.begin(), upper)));
             auto actualLower = tree.lowerBound(query);
             auto actualUpper = tree.upperBound(query);
             ASSERT_EQ(actualLower.has_value(), lower != reference.end());
@@ -47,6 +49,7 @@ TEST(RedBlackTree, BoundResultSurvivesTreeDestruction) {
         tree.insert(4); tree.insert(8); tree.insert(2);
         EXPECT_EQ(tree.upperBound(8), 4);
         EXPECT_EQ(tree.countKeysLessThan(4), 1U);
+        EXPECT_EQ(tree.countKeysLessThanOrEqual(4), 2U);
         EXPECT_EQ(tree.countKeysLessThan(1), 3U);
         return tree.lowerBound(7);
     }();

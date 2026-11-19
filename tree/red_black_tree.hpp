@@ -15,6 +15,7 @@ private:
     Comp comp_;
     enum class nodeColor_t {RED, BLACK};
     enum class ChildSide {LEFT, RIGHT};
+    enum class KeyInclusion {EXCLUDE_EQUAL, INCLUDE_EQUAL};
 
     class NodeData {
     private:
@@ -42,6 +43,7 @@ private:
 
     nodeColor_t colorOf(NodeId node) const;
     std::size_t subtreeSize(NodeId node) const;
+    std::size_t countKeysUpTo(const keyT& key, KeyInclusion inclusion) const;
     void updateSubtreeSize(NodeId node);
     void updateAncestorSizes(NodeId node);
     void rotateLeft(NodeId node);
@@ -80,6 +82,7 @@ public:
 public:
     std::size_t size() const noexcept { return tree_.size(); }
     std::size_t countKeysLessThan(const keyT& key) const;
+    std::size_t countKeysLessThanOrEqual(const keyT& key) const;
     std::optional<keyT> lowerBound(const keyT& key) const;
     std::optional<keyT> upperBound(const keyT& key) const;
 
@@ -304,11 +307,28 @@ redBlackTree_t<keyT, Comp>::find(const keyT& key) const {
 
 template <typename keyT, typename Comp>
 std::size_t redBlackTree_t<keyT, Comp>::countKeysLessThan(const keyT& key) const {
+    return countKeysUpTo(key, KeyInclusion::EXCLUDE_EQUAL);
+}
+
+template <typename keyT, typename Comp>
+std::size_t redBlackTree_t<keyT, Comp>::countKeysLessThanOrEqual(const keyT& key) const {
+    return countKeysUpTo(key, KeyInclusion::INCLUDE_EQUAL);
+}
+
+template <typename keyT, typename Comp>
+std::size_t redBlackTree_t<keyT, Comp>::countKeysUpTo(
+    const keyT& key, KeyInclusion inclusion) const {
     std::size_t count = 0;
     NodeId currentId = tree_.root();
+
     while (currentId != nil()) {
         const auto& current = tree_.getNode(currentId);
-        if (comp_(current.data().key(), key)) {
+        const auto& currentKey = current.data().key();
+
+        const bool countCurrent = (inclusion == KeyInclusion::INCLUDE_EQUAL)
+                                ? !comp_(key, currentKey)
+                                : comp_(currentKey, key);
+        if (countCurrent) {
             count += 1 + subtreeSize(current.left());
             currentId = current.right();
         } else {
