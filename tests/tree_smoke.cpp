@@ -1,4 +1,8 @@
 #include <iostream>
+#include <algorithm>
+#include <iterator>
+#include <type_traits>
+#include <vector>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -11,10 +15,86 @@ using general_functions::BinaryTree;
 using Tree = BinaryTree<int>;
 constexpr auto nil = Tree::INVALID_NODE;
 
+static_assert(std::is_same_v<decltype(*std::declval<Tree::const_iterator>()), const int&>);
+static_assert(!std::is_constructible_v<Tree::iterator, Tree::const_iterator>);
+
 void require(bool condition, const char* message) {
     if (!condition) {
         throw std::runtime_error(message);
     }
+}
+
+void testIterators() {
+    Tree tree;
+    require(tree.begin() == tree.end() && tree.cbegin() == tree.cend(),
+            "Empty tree has a nonempty iterator range");
+    const auto root = tree.addRoot(4);
+    auto only = tree.end();
+    require(*--only == 4 && ++only == tree.end(), "Single-node traversal failed");
+    const auto right = tree.allocateNode(6);
+    const auto unused = tree.allocateNode(99);
+    tree.releaseNode(unused);
+    const auto left = tree.allocateNode(2);
+    const auto middle = tree.allocateNode(3);
+    tree.getNode(root).setLeft(left);
+    tree.getNode(left).setParent(root);
+    tree.getNode(root).setRight(right);
+    tree.getNode(right).setParent(root);
+    tree.getNode(left).setRight(middle);
+    tree.getNode(middle).setParent(left);
+    tree.allocateNode(100); // Detached nodes are outside the traversal.
+    const std::vector<int> expected{2, 3, 4, 6};
+    require(std::vector<int>(tree.begin(), tree.end()) == expected,
+            "Iteration follows allocation order instead of tree links");
+    const auto& constTree = tree;
+    Tree::const_iterator converted = tree.begin();
+    require(converted == tree.begin() && tree.begin() == converted,
+            "Mutable and const iterators cannot be compared");
+    require(std::vector<int>(constTree.begin(), constTree.end()) == expected,
+            "Const traversal failed");
+    using Order = Tree::TraversalOrder;
+    const auto checkOrder = [&](Order order, const std::vector<int>& forward,
+                                const std::vector<int>& backward) {
+        const auto traversal = constTree.traverse(order);
+        const auto first = traversal.begin();
+        const auto last = traversal.end();
+        std::vector<int> visited;
+        for (const auto& value : traversal) {
+            visited.push_back(value);
+        }
+        require(visited == forward, "Wrong traversal order");
+        require(std::vector<int>(std::make_reverse_iterator(last),
+                                 std::make_reverse_iterator(first)) == backward,
+                "Wrong reverse traversal order");
+        Tree::const_iterator fromMutable = tree.traverse(order).begin();
+        require(fromMutable == first && std::next(fromMutable) == std::next(first),
+                "Conversion lost traversal order");
+        const Tree empty;
+        const auto emptyTraversal = empty.traverse(order);
+        require(emptyTraversal.begin() == emptyTraversal.end(), "Wrong empty traversal");
+    };
+    checkOrder(Order::PreOrder, {4, 2, 3, 6}, {6, 3, 2, 4});
+    checkOrder(Order::PostOrder, {3, 2, 6, 4}, {4, 6, 2, 3});
+    require(tree.traverse(Order::PreOrder).end() != tree.traverse(Order::PostOrder).end(),
+            "Iterator comparison ignored traversal order");
+    require(std::vector<int>(std::make_reverse_iterator(tree.end()),
+                             std::make_reverse_iterator(tree.begin())) ==
+                std::vector<int>({6, 4, 3, 2}), "Reverse traversal failed");
+    auto it = tree.begin();
+    require(*it++ == 2 && *it == 3 && *it-- == 3 && *it == 2,
+            "Postfix increment/decrement failed");
+    tree.reserve(1000);
+    require(*it == 2, "Reserve invalidated an iterator");
+    tree.rotateLeft(root);
+    require(std::vector<int>(tree.begin(), tree.end()) == expected,
+            "Rotation changed traversal order");
+    for (auto& value : tree) {
+        ++value;
+    }
+    require(tree.getNode(left).data() == 3 && *converted.operator->() == 3,
+            "Mutable iterator did not update the stored value");
+    Tree other;
+    require(tree.end() != other.end(), "Iterators ignore tree identity");
 }
 
 template <typename Exception, typename Operation>
@@ -239,6 +319,7 @@ void testReuseAfterFailedConstruction() {
 int main() {
     try {
         testCopyExceptionSafety();
+        testIterators();
         testRotationsAndTransplant();
         testGrowthAndFreeSlots();
         testMoveOnlyValues();
