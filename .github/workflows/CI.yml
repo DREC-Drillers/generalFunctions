@@ -1,0 +1,38 @@
+name: Nix CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test (nix)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+      - name: Configure
+        run: nix develop --command cmake --preset nix
+      - name: Build
+        run: nix develop --command cmake --build --preset nix --parallel 2
+      - name: Test
+        run: nix develop --command ctest --preset nix --no-tests=error
+
+  nix:
+    name: Verify Nix packages and installed consumer
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+      - name: Check packages and installed consumer
+        run: nix flake check --print-build-logs
