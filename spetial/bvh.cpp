@@ -96,8 +96,8 @@ std::size_t Bvh::partitionObjects(std::size_t begin, std::size_t count,
 }
 
 void Bvh::build(NodeId node, const std::vector<point_t<3>>& centers) {
-    const auto begin = tree_.value(node).begin;
-    const auto count = tree_.value(node).count;
+    const auto begin = tree_.getNode(node).data().begin;
+    const auto count = tree_.getNode(node).data().count;
     if (count <= MAX_LEAF_SIZE) {
         return;
     }
@@ -106,11 +106,15 @@ void Bvh::build(NodeId node, const std::vector<point_t<3>>& centers) {
 
     const auto middle = partitionObjects(begin, count, splitAxis, centers);
 
-    tree_.value(node).count = 0;
-    const auto left = tree_.addLeft(node, makeNode(begin, middle - begin));
+    tree_.getNode(node).data().count = 0;
+    const auto left = tree_.allocateNode(makeNode(begin, middle - begin));
+    tree_.getNode(node).setLeft(left);
+    tree_.getNode(left).setParent(node);
     build(left, centers);
     const auto right =
-        tree_.addRight(node, makeNode(middle, begin + count - middle));
+        tree_.allocateNode(makeNode(middle, begin + count - middle));
+    tree_.getNode(node).setRight(right);
+    tree_.getNode(right).setParent(node);
     build(right, centers);
 }
 
