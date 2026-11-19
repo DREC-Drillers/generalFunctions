@@ -12,17 +12,17 @@ namespace general_functions {
 
 template <typename T>
 class BinaryTree {
-public:
-    using NodeId = std::uint32_t;
-    static constexpr NodeId INVALID_NODE = std::numeric_limits<NodeId>::max();
-
 private:
     class Node;
 
     std::vector<std::optional<Node>> nodes_;
-    std::vector<NodeId> freeNodes_;
-    NodeId rootId_ = INVALID_NODE;
+    std::vector<std::uint32_t> freeNodes_;
+    std::uint32_t rootId_ = std::numeric_limits<std::uint32_t>::max();
+
 public:
+    using NodeId = std::uint32_t;
+    static constexpr NodeId INVALID_NODE = std::numeric_limits<NodeId>::max();
+
     BinaryTree() = default;
     BinaryTree(const BinaryTree&) = default;
     BinaryTree(BinaryTree&& other) noexcept { swap(other); }
@@ -32,7 +32,6 @@ public:
 
     void swap(BinaryTree& other) noexcept;
 
-public:
     bool empty() const noexcept { return size() == 0; }
     std::size_t size() const noexcept { return nodes_.size() - freeNodes_.size(); }
 
@@ -52,6 +51,7 @@ public:
     void rotateRight(NodeId node);
 
     void transplant(NodeId replaceableNodeId, NodeId newNodeId);
+
 };
 
 template <typename T>
