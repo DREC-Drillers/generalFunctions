@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <stdexcept>
 #include <tuple>
@@ -14,9 +15,9 @@ template <typename keyT, typename Comp>
 class redBlackTree_t {
 private:
     Comp comp_;
-    enum class nodeColor_t {RED, BLACK};
-    enum class ChildSide {LEFT, RIGHT};
-    enum class KeyInclusion {EXCLUDE_EQUAL, INCLUDE_EQUAL};
+    enum class nodeColor_t : std::uint8_t {RED, BLACK};
+    enum class ChildSide : std::uint8_t {LEFT, RIGHT};
+    enum class KeyInclusion : std::uint8_t {EXCLUDE_EQUAL, INCLUDE_EQUAL};
 
     class NodeData {
     private:

@@ -1,5 +1,4 @@
-#include <cstdint>
-#include <limits>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -8,9 +7,13 @@
 
 namespace {
 
-void require(bool condition) {
+using general_functions::BinaryTree;
+using Tree = BinaryTree<int>;
+constexpr auto nil = Tree::INVALID_NODE;
+
+void require(bool condition, const char* message) {
     if (!condition) {
-        throw std::runtime_error("BinaryTree test failed");
+        throw std::runtime_error(message);
     }
 }
 
@@ -26,18 +29,7 @@ void requireThrows(Operation operation) {
 
 struct ThrowingCopy {
     explicit ThrowingCopy(int data) : value(data) {}
-
-    ThrowingCopy(const ThrowingCopy& other) : value(other.value) { checkCopy(); }
-    ThrowingCopy(ThrowingCopy&&) noexcept = default;
-
-    ThrowingCopy& operator=(const ThrowingCopy& other) {
-        checkCopy();
-        value = other.value;
-        return *this;
-    }
-    ThrowingCopy& operator=(ThrowingCopy&&) noexcept = default;
-
-    static void checkCopy() {
+    ThrowingCopy(const ThrowingCopy& other) : value(other.value) {
         if (copiesBeforeThrow == 0) {
             throw std::runtime_error("Injected copy failure");
         }
@@ -45,147 +37,214 @@ struct ThrowingCopy {
             --copiesBeforeThrow;
         }
     }
+    ThrowingCopy(ThrowingCopy&&) noexcept = default;
 
     int value;
     inline static int copiesBeforeThrow = -1;
 };
 
 void testCopyExceptionSafety() {
-    using Tree = general_functions::BinaryTree<ThrowingCopy>;
-    Tree target;
-    target.reserve(8);
+    BinaryTree<ThrowingCopy> target;
     const auto targetRoot = target.addRoot(ThrowingCopy(1));
-    const auto targetLeft = target.addLeft(targetRoot, ThrowingCopy(2));
-    Tree source;
-    const auto sourceRoot = source.addRoot(ThrowingCopy(10));
-    const auto sourceLeft = source.addLeft(sourceRoot, ThrowingCopy(20));
-    const auto sourceRight = source.addRight(sourceRoot, ThrowingCopy(30));
+    const auto targetFree = target.allocateNode(ThrowingCopy(2));
+    target.releaseNode(targetFree);
 
-    // The old vector assignment copied the root links before the second copy
-    // failed, leaving target.right(root) == 2 while target.size() == 2.
+    BinaryTree<ThrowingCopy> source;
+    const auto sourceRoot = source.addRoot(ThrowingCopy(10));
+    const auto child = source.allocateNode(ThrowingCopy(20));
+    source.getNode(sourceRoot).setLeft(child);
+    source.getNode(child).setParent(sourceRoot);
+
     ThrowingCopy::copiesBeforeThrow = 1;
     requireThrows<std::runtime_error>([&] { target = source; });
-    require(target.size() == 2 && target.root() == targetRoot);
-    require(target.left(targetRoot) == targetLeft && !target.right(targetRoot));
-    require(target.value(targetRoot).value == 1 &&
-            target.value(targetLeft).value == 2);
-    require(source.size() == 3 && source.value(sourceRoot).value == 10);
-    require(source.left(sourceRoot) == sourceLeft &&
-            source.right(sourceRoot) == sourceRight);
+    require(target.size() == 1 && target.root() == targetRoot &&
+                target.getNode(targetRoot).data().value == 1,
+            "Failed assignment changed the target tree");
 
     ThrowingCopy::copiesBeforeThrow = 1;
-    requireThrows<std::runtime_error>([&] { Tree copy(source); });
-    require(source.size() == 3 && source.value(sourceLeft).value == 20);
+    requireThrows<std::runtime_error>([&] { return BinaryTree<ThrowingCopy>(source); });
+    require(source.size() == 2 && source.getNode(child).data().value == 20,
+            "Failed copy changed the source tree");
 
-    // Self-assignment must not copy even if the next copy would throw.
     ThrowingCopy::copiesBeforeThrow = 0;
-    auto& sameTarget = target;
+    const auto& sameTarget = target;
     target = sameTarget;
-    require(target.size() == 2 && target.value(targetRoot).value == 1);
-
     ThrowingCopy::copiesBeforeThrow = -1;
+    require(target.allocateNode(ThrowingCopy(3)) == targetFree,
+            "Failed assignment lost the target's free slot");
+
     target = source;
-    require(target.size() == 3 && target.left(sourceRoot) == sourceLeft);
-    require(target.right(sourceRoot) == sourceRight);
-    target.value(sourceLeft).value = 99;
-    require(source.value(sourceLeft).value == 20);
-
-    Tree empty;
-    target = empty;
-    require(target.empty() && !target.root());
-    empty = source;
-    require(empty.size() == 3 && empty.value(sourceRight).value == 30);
-
-    using std::swap;
-    swap(target, empty);
-    require(target.size() == 3 && empty.empty());
+    require(target.root() == sourceRoot && target.getNode(sourceRoot).left() == child &&
+                target.getNode(child).parent() == sourceRoot,
+            "Copy assignment lost a tree link");
+    target.getNode(child).data().value = 99;
+    require(source.getNode(child).data().value == 20, "Copy shares data with source");
 }
 
-void testTopologyUpdates() {
-    general_functions::BinaryTree<int> tree;
-    const auto first = tree.addRoot(10);
-    const auto second = tree.addRight(first, 20);
-    const auto third = tree.addLeft(second, 15);
-    tree.setRight(first, third);
-    tree.setLeft(second, first);
-    tree.setRoot(second);
-    require(tree.root() == second);
-    require(tree.left(second) == first && tree.right(first) == third);
+void testRotationsAndTransplant() {
+    Tree tree;
+    const auto root = tree.addRoot(20);
+    const auto pivot = tree.allocateNode(40);
+    const auto middle = tree.allocateNode(30);
+    tree.getNode(root).setRight(pivot);
+    tree.getNode(pivot).setParent(root);
+    tree.getNode(pivot).setLeft(middle);
+    tree.getNode(middle).setParent(pivot);
+
+    tree.rotateLeft(root);
+    require(tree.root() == pivot && tree.getNode(pivot).parent() == nil &&
+                tree.getNode(pivot).left() == root && tree.getNode(root).parent() == pivot &&
+                tree.getNode(root).right() == middle && tree.getNode(middle).parent() == root,
+            "Left rotation at root left inconsistent links");
+
+    tree.rotateLeft(root);
+    require(tree.root() == pivot && tree.getNode(pivot).left() == middle &&
+                tree.getNode(middle).parent() == pivot && tree.getNode(middle).left() == root &&
+                tree.getNode(root).parent() == middle && tree.getNode(root).right() == nil,
+            "Left rotation inside tree left inconsistent links");
+
+    tree.rotateRight(middle);
+    require(tree.getNode(pivot).left() == root && tree.getNode(root).right() == middle &&
+                tree.getNode(middle).parent() == root,
+            "Right rotation inside tree left inconsistent links");
+
+    tree.rotateRight(pivot);
+    require(tree.root() == root && tree.getNode(root).parent() == nil &&
+                tree.getNode(root).right() == pivot && tree.getNode(pivot).parent() == root &&
+                tree.getNode(pivot).left() == middle && tree.getNode(middle).parent() == pivot,
+            "Right rotation at root left inconsistent links");
+
+    requireThrows<std::out_of_range>([&] { tree.rotateRight(root); });
+    requireThrows<std::logic_error>([&] { tree.releaseNode(middle); });
+
+    const auto replacement = tree.allocateNode(35);
+    tree.transplant(middle, replacement);
+    require(tree.getNode(pivot).left() == replacement &&
+                tree.getNode(replacement).parent() == pivot &&
+                tree.getNode(middle).parent() == nil,
+            "Transplant failed to replace a child");
+    tree.transplant(replacement, replacement);
+    require(tree.getNode(pivot).left() == replacement &&
+                tree.getNode(replacement).parent() == pivot,
+            "Transplant to the same node changed its links");
+    tree.releaseNode(middle);
+
+    requireThrows<std::out_of_range>([&] { tree.transplant(replacement, middle); });
+    require(tree.getNode(pivot).left() == replacement,
+            "Failed transplant changed the parent");
+    tree.transplant(replacement, nil);
+    require(tree.getNode(pivot).left() == nil, "Transplant failed to unlink the child");
+    tree.releaseNode(replacement);
+
+    tree.transplant(root, pivot);
+    require(tree.root() == pivot && tree.getNode(pivot).parent() == nil,
+            "Transplant failed to replace the root");
+    tree.getNode(root).setRight(nil);
+    tree.releaseNode(root);
+    tree.releaseNode(pivot);
+    require(tree.empty() && tree.root() == nil, "Releasing the last root did not empty the tree");
+}
+
+void testGrowthAndFreeSlots() {
+    Tree tree;
+    require(tree.empty() && tree.root() == nil, "New tree is not empty");
+    tree.reserve(3);
+    const auto root = tree.addRoot(10);
+    const auto detached = tree.allocateNode(20);
+    requireThrows<std::logic_error>([&] { tree.addRoot(30); });
+    requireThrows<std::out_of_range>([&] { tree.getNode(nil); });
+    const auto& constTree = tree;
+    requireThrows<std::out_of_range>([&] { constTree.getNode(nil); });
+
+    auto tail = root;
+    for (int value = 0; value < 1000; ++value) {
+        const auto child = tree.allocateNode(int{value});
+        tree.getNode(tail).setLeft(child);
+        tree.getNode(child).setParent(tail);
+        tail = child;
+    }
+    tree.reserve(2000);
+    require(tree.getNode(root).data() == 10 && tree.getNode(tail).data() == 999 &&
+                tree.getNode(tree.getNode(root).left()).parent() == root,
+            "Growing the vector changed an existing node or link");
+
+    tree.prepareRelease();
+    tree.releaseNode(detached);
+    requireThrows<std::out_of_range>([&] { tree.releaseNode(detached); });
+    requireThrows<std::out_of_range>([&] { constTree.getNode(detached); });
+
     auto copy = tree;
-    require(copy.root() == second && copy.left(second) == first);
-    auto moved = std::move(copy);
-    require(moved.root() == second && copy.empty() && !copy.root());
-    copy.addRoot(99);
-    require(copy.value(*copy.root()) == 99);
-    general_functions::BinaryTree<int> assigned;
-    assigned = tree;
-    require(assigned.root() == second);
-    assigned = std::move(moved);
-    require(assigned.root() == second && moved.empty() && !moved.root());
-    const auto bad =
-        std::numeric_limits<general_functions::BinaryTree<int>::NodeId>::max();
-    requireThrows<std::out_of_range>([&] { tree.setRoot(bad); });
-    requireThrows<std::out_of_range>([&] { tree.setLeft(first, bad); });
-    requireThrows<std::out_of_range>([&] { tree.setRight(bad, first); });
-    require(tree.root() == second && tree.right(first) == third);
+    require(copy.allocateNode(50) == detached, "Copy did not retain a vacant slot");
+    require(tree.size() == 1001 && copy.size() == 1002, "Copy changed the source size");
+    auto moved = std::move(tree);
+    // Empty moved-from trees are part of the BinaryTree contract.
+    // NOLINTNEXTLINE(bugprone-use-after-move)
+    require(tree.empty() && tree.root() == nil, "Move constructor did not empty the source");
+    tree = std::move(moved);
+    // NOLINTNEXTLINE(bugprone-use-after-move)
+    require(moved.empty() && moved.root() == nil, "Move assignment did not empty the source");
+    require(tree.allocateNode(60) == detached && tree.size() == 1002,
+            "Move lost the vacant slot or the live nodes");
+    tree.swap(copy);
+    require(tree.getNode(detached).data() == 50 && copy.getNode(detached).data() == 60,
+            "Swap did not exchange data");
+}
+
+void testMoveOnlyValues() {
+    BinaryTree<std::unique_ptr<int>> tree;
+    const auto root = tree.addRoot(std::make_unique<int>(7));
+    const auto child = tree.allocateNode(std::make_unique<int>(9));
+    auto moved = std::move(tree);
+    require(*moved.getNode(root).data() == 7 && *moved.getNode(child).data() == 9,
+            "Moving the tree lost a move-only value");
+    moved.releaseNode(child);
+    require(moved.allocateNode(std::make_unique<int>(11)) == child &&
+                *moved.getNode(child).data() == 11,
+            "Reusing a slot did not construct a new move-only value");
+}
+
+struct ThrowingMove {
+    explicit ThrowingMove(int data) : value(data) {}
+    ThrowingMove(const ThrowingMove&) = default;
+    // Exercise failure while constructing a node in a reused slot.
+    // NOLINTNEXTLINE(bugprone-exception-escape,performance-noexcept-move-constructor)
+    ThrowingMove(ThrowingMove&& other) : value(other.value) {
+        if (failMove) {
+            throw std::runtime_error("Injected move failure");
+        }
+    }
+
+    int value;
+    inline static bool failMove = false;
+};
+
+void testReuseAfterFailedConstruction() {
+    BinaryTree<ThrowingMove> tree;
+    const auto root = tree.addRoot(ThrowingMove(10));
+    const auto slot = tree.allocateNode(ThrowingMove(20));
+    tree.releaseNode(slot);
+
+    ThrowingMove::failMove = true;
+    requireThrows<std::runtime_error>([&] { tree.allocateNode(ThrowingMove(30)); });
+    ThrowingMove::failMove = false;
+    require(tree.size() == 1 && tree.getNode(root).data().value == 10,
+            "Failed construction changed the live nodes");
+    requireThrows<std::out_of_range>([&] { tree.getNode(slot); });
+    require(tree.allocateNode(ThrowingMove(40)) == slot && tree.size() == 2,
+            "Failed construction lost a vacant slot");
 }
 
 } // namespace
 
 int main() {
-    testCopyExceptionSafety();
-    testTopologyUpdates();
-    using general_functions::BinaryTree;
-    BinaryTree<int> tree;
-    require(tree.empty() && tree.size() == 0 && !tree.root());
-    tree.reserve(3);
-    const auto root = tree.addRoot(10);
-    const auto left = tree.addLeft(root, 20);
-    const auto right = tree.addRight(root, 30);
-    require(tree.root() == root && tree.left(root) == left &&
-            tree.right(root) == right);
-    require(!tree.left(left) && !tree.right(left));
-    tree.value(left) = 25;
-    const auto& constTree = tree;
-    require(constTree.value(left) == 25);
-
-    requireThrows<std::logic_error>([&] { tree.addRoot(40); });
-    requireThrows<std::logic_error>([&] { tree.addLeft(root, 40); });
-    requireThrows<std::logic_error>([&] { tree.addRight(root, 40); });
-    constexpr auto INVALID_ID = std::numeric_limits<BinaryTree<int>::NodeId>::max();
-    requireThrows<std::out_of_range>([&] { tree.addLeft(INVALID_ID, 40); });
-    requireThrows<std::out_of_range>([&] { tree.addRight(INVALID_ID, 40); });
-    requireThrows<std::out_of_range>([&] { tree.value(INVALID_ID); });
-    requireThrows<std::out_of_range>([&] { constTree.value(INVALID_ID); });
-    requireThrows<std::out_of_range>([&] { tree.left(INVALID_ID); });
-    requireThrows<std::out_of_range>([&] { tree.right(INVALID_ID); });
-    require(tree.size() == 3);
-
-    auto tail = left;
-    for (int value = 0; value < 1000; ++value) {
-        tail = tree.addLeft(tail, value);
+    try {
+        testCopyExceptionSafety();
+        testRotationsAndTransplant();
+        testGrowthAndFreeSlots();
+        testMoveOnlyValues();
+        testReuseAfterFailedConstruction();
+    } catch (const std::exception& error) {
+        std::cerr << error.what() << '\n';
+        return 1;
     }
-    tree.reserve(2000);
-    require(tree.value(root) == 10 && tree.value(left) == 25);
-    require(tree.value(right) == 30 && tree.value(tail) == 999);
-    require(tree.left(root) == left && tree.right(root) == right);
-
-    auto copy = tree;
-    copy.value(root) = -1;
-    require(tree.value(root) == 10 && copy.value(root) == -1);
-    auto moved = std::move(copy);
-    require(moved.value(root) == -1 && moved.left(root) == left);
-
-    BinaryTree<std::unique_ptr<int>> owning;
-    const auto owningRoot = owning.addRoot(std::make_unique<int>(7));
-    const auto owningChild = owning.addRight(owningRoot, std::make_unique<int>(9));
-    require(*owning.value(owningRoot) == 7 && *owning.value(owningChild) == 9);
-    auto movedOwning = std::move(owning);
-    require(*movedOwning.value(owningChild) == 9);
-    BinaryTree<std::unique_ptr<int>> assignedOwning;
-    assignedOwning.addRoot(std::make_unique<int>(-1));
-    assignedOwning = std::move(movedOwning);
-    require(*assignedOwning.value(owningRoot) == 7);
-    require(assignedOwning.right(owningRoot) == owningChild);
-    require(*assignedOwning.value(owningChild) == 9);
 }

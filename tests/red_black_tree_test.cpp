@@ -217,8 +217,16 @@ TEST(RedBlackTree, StatefulComparatorLifetimeAndExceptions) {
         EXPECT_EQ(Key::live,3);
         const auto& constTree=tree;
         EXPECT_TRUE(constTree.find(Key(2)));
-        EXPECT_EQ(constTree.lowerBound(Key(2))->value,2);
-        EXPECT_EQ(constTree.upperBound(Key(2))->value,1);
+        if (const auto lower = constTree.lowerBound(Key(2))) {
+            EXPECT_EQ(lower->value, 2);
+        } else {
+            ADD_FAILURE() << "Expected a lower bound for key 2";
+        }
+        if (const auto upper = constTree.upperBound(Key(2))) {
+            EXPECT_EQ(upper->value, 1);
+        } else {
+            ADD_FAILURE() << "Expected an upper bound for key 2";
+        }
         fail=true;
         EXPECT_THROW(tree.insert(Key(4)),std::runtime_error);
         EXPECT_THROW(tree.erase(Key(2)),std::runtime_error);
@@ -242,5 +250,33 @@ TEST(RedBlackTree, MoveOnlyKeysSupportInsertFindAndErase) {
     red_black_tree::redBlackTree_t<std::unique_ptr<int>, decltype(compare)> tree(compare);
     tree.insert(std::make_unique<int>(2)); tree.insert(std::make_unique<int>(1)); tree.insert(std::make_unique<int>(3));
     auto query=std::make_unique<int>(2);
+    ASSERT_EQ(*tree.select(1), 2);
     EXPECT_TRUE(tree.find(query)); tree.erase(query); EXPECT_FALSE(tree.find(query));
+    EXPECT_EQ(*tree.select(1), 3);
+}
+
+TEST(RedBlackTree, ComparatorEquivalenceAcrossRankQueriesAndErase) {
+    const auto compare = [](const auto& left, const auto& right) {
+        return left.first < right.first;
+    };
+    using Key = std::pair<int, int>;
+    red_black_tree::redBlackTree_t<Key, decltype(compare)> tree(compare);
+    tree.insert({2, 20});
+    tree.insert({1, 10});
+    tree.insert({3, 30});
+    tree.insert({2, 99});
+
+    const Key query{2, 0};
+    EXPECT_EQ(tree.size(), 3U);
+    EXPECT_TRUE(tree.find(query));
+    EXPECT_EQ(tree.countKeysLessThan(query), 1U);
+    EXPECT_EQ(tree.countKeysLessThanOrEqual(query), 2U);
+    EXPECT_EQ(tree.select(1), (Key{2, 20}));
+    EXPECT_THROW(tree.select(std::numeric_limits<std::size_t>::max()), std::out_of_range);
+
+    tree.erase(query);
+    EXPECT_FALSE(tree.find(query));
+    EXPECT_EQ(tree.countKeysLessThan(query), 1U);
+    EXPECT_EQ(tree.countKeysLessThanOrEqual(query), 1U);
+    EXPECT_EQ(tree.select(1), (Key{3, 30}));
 }
