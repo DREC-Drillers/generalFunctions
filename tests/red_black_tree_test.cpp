@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -29,6 +30,8 @@ TEST(RedBlackTree, RandomInsertEraseAndBounds) {
             ASSERT_EQ(tree.find(query), reference.count(query) != 0);
             auto lower = reference.lower_bound(query);
             auto upper = reference.upper_bound(query);
+            ASSERT_EQ(tree.countKeysLessThan(query),
+                      static_cast<std::size_t>(std::distance(reference.begin(), lower)));
             auto actualLower = tree.lowerBound(query);
             auto actualUpper = tree.upperBound(query);
             ASSERT_EQ(actualLower.has_value(), lower != reference.end());
@@ -43,6 +46,8 @@ TEST(RedBlackTree, BoundResultSurvivesTreeDestruction) {
         red_black_tree::redBlackTree_t<int, std::greater<int>> tree;
         tree.insert(4); tree.insert(8); tree.insert(2);
         EXPECT_EQ(tree.upperBound(8), 4);
+        EXPECT_EQ(tree.countKeysLessThan(4), 1U);
+        EXPECT_EQ(tree.countKeysLessThan(1), 3U);
         return tree.lowerBound(7);
     }();
     EXPECT_EQ(result, 4);
@@ -79,9 +84,11 @@ void verify(Tree& tree, const std::set<int>& expected) {
             EXPECT_EQ(colorOf(node.left()), Color::BLACK);
             EXPECT_EQ(colorOf(node.right()), Color::BLACK);
         }
+        const auto first = keys.size();
         int left = walk(node.left(), id);
         keys.push_back(node.data().key());
         int right = walk(node.right(), id);
+        EXPECT_EQ(node.data().subtreeSize(), keys.size() - first);
         EXPECT_EQ(left, right);
         return left + (node.data().color() == Color::BLACK);
     };
@@ -134,6 +141,7 @@ TEST(RedBlackTree, EmptyDuplicatesAndIntegerLimits) {
     EXPECT_FALSE(tree.find(0));
     EXPECT_FALSE(tree.lowerBound(0));
     EXPECT_FALSE(tree.upperBound(0));
+    EXPECT_EQ(tree.countKeysLessThan(0), 0U);
     std::set<int> keys{std::numeric_limits<int>::min(), 0, std::numeric_limits<int>::max()};
     for (int key : keys) for (int i=0; i<10; ++i) tree.insert(key);
     verify(tree, keys);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <tuple>
 #include <utility>
@@ -19,13 +20,18 @@ private:
     private:
         keyT key_;
         nodeColor_t color_ = nodeColor_t::RED;
+        std::size_t subtreeSize_ = 1;
 
     public:
         explicit NodeData(keyT&& key) : key_(std::move(key)) {}
 
         const keyT& key() const noexcept { return key_; }
+
         nodeColor_t color() const noexcept { return color_; }
         void setColor(nodeColor_t color) noexcept { color_ = color; }
+
+        std::size_t subtreeSize() const noexcept { return subtreeSize_; }
+        void setSubtreeSize(std::size_t size) noexcept { subtreeSize_ = size; }
     };
 
     using Tree = general_functions::BinaryTree<NodeData>;
@@ -35,6 +41,11 @@ private:
     static constexpr NodeId nil() { return Tree::INVALID_NODE; }
 
     nodeColor_t colorOf(NodeId node) const;
+    std::size_t subtreeSize(NodeId node) const;
+    void updateSubtreeSize(NodeId node);
+    void updateAncestorSizes(NodeId node);
+    void rotateLeft(NodeId node);
+    void rotateRight(NodeId node);
     NodeId grandparent(NodeId node) const;
     NodeId uncle(NodeId node) const;
     NodeId sibling(NodeId node, NodeId parent) const;
@@ -67,6 +78,8 @@ public:
     redBlackTree_t& operator=(redBlackTree_t&&) = delete;
 
 public:
+    std::size_t size() const noexcept { return tree_.size(); }
+    std::size_t countKeysLessThan(const keyT& key) const;
     std::optional<keyT> lowerBound(const keyT& key) const;
     std::optional<keyT> upperBound(const keyT& key) const;
 
@@ -85,6 +98,39 @@ typename redBlackTree_t<keyT, Comp>::nodeColor_t
 redBlackTree_t<keyT, Comp>::colorOf(NodeId nodeId) const {
     return nodeId == nil() ? nodeColor_t::BLACK :
                              tree_.getNode(nodeId).data().color();
+}
+
+template <typename keyT, typename Comp>
+std::size_t redBlackTree_t<keyT, Comp>::subtreeSize(NodeId nodeId) const {
+    return nodeId == nil() ? 0 : tree_.getNode(nodeId).data().subtreeSize();
+}
+
+template <typename keyT, typename Comp>
+void redBlackTree_t<keyT, Comp>::updateSubtreeSize(NodeId nodeId) {
+    auto& node = tree_.getNode(nodeId);
+    node.data().setSubtreeSize(1 + subtreeSize(node.left()) + subtreeSize(node.right()));
+}
+
+template <typename keyT, typename Comp>
+void redBlackTree_t<keyT, Comp>::updateAncestorSizes(NodeId nodeId) {
+    while (nodeId != nil()) {
+        updateSubtreeSize(nodeId);
+        nodeId = tree_.getNode(nodeId).parent();
+    }
+}
+
+template <typename keyT, typename Comp>
+void redBlackTree_t<keyT, Comp>::rotateLeft(NodeId nodeId) {
+    tree_.rotateLeft(nodeId);
+    updateSubtreeSize(nodeId);
+    updateSubtreeSize(tree_.getNode(nodeId).parent());
+}
+
+template <typename keyT, typename Comp>
+void redBlackTree_t<keyT, Comp>::rotateRight(NodeId nodeId) {
+    tree_.rotateRight(nodeId);
+    updateSubtreeSize(nodeId);
+    updateSubtreeSize(tree_.getNode(nodeId).parent());
 }
 
 template <typename keyT, typename Comp>
@@ -203,10 +249,10 @@ redBlackTree_t<keyT, Comp>::insertCase4(NodeId nodeId) {
     const auto& grandparent = tree_.getNode(parent.parent());
 
     if (nodeId == parent.right() && parentId == grandparent.left()) {
-        tree_.rotateLeft(parentId);
+        rotateLeft(parentId);
         nodeId = node.left();
     } else if (nodeId == parent.left() && parentId == grandparent.right()) {
-        tree_.rotateRight(parentId);
+        rotateRight(parentId);
         nodeId = node.right();
     }
 
@@ -228,9 +274,9 @@ redBlackTree_t<keyT, Comp>::insertCase5(NodeId nodeId) {
     grandparent.data().setColor(nodeColor_t::RED);
 
     if (nodeId == parent.left() && parentId == grandparent.left()) {
-        tree_.rotateRight(grandparentId);
+        rotateRight(grandparentId);
     } else {
-        tree_.rotateLeft(grandparentId);
+        rotateLeft(grandparentId);
     }
 }
 
@@ -254,6 +300,22 @@ template <typename keyT, typename Comp>
 bool
 redBlackTree_t<keyT, Comp>::find(const keyT& key) const {
     return findInSubtree(key, tree_.root()) != nil();
+}
+
+template <typename keyT, typename Comp>
+std::size_t redBlackTree_t<keyT, Comp>::countKeysLessThan(const keyT& key) const {
+    std::size_t count = 0;
+    NodeId currentId = tree_.root();
+    while (currentId != nil()) {
+        const auto& current = tree_.getNode(currentId);
+        if (comp_(current.data().key(), key)) {
+            count += 1 + subtreeSize(current.left());
+            currentId = current.right();
+        } else {
+            currentId = current.left();
+        }
+    }
+    return count;
 }
 
 template <typename keyT, typename Comp>
@@ -338,6 +400,7 @@ redBlackTree_t<keyT, Comp>::insertInSubtree(
                 parent.setRight(newNodeId);
             }
         }
+        updateAncestorSizes(parentId);
         insertCase1(newNodeId);
         return;
     }
@@ -465,9 +528,9 @@ redBlackTree_t<keyT, Comp>::rotateParent(NodeId nodeId, NodeId parentId) {
 
     const auto& parent = tree_.getNode(parentId);
     if (nodeId == parent.left()) {
-        tree_.rotateLeft(parentId);
+        rotateLeft(parentId);
     } else {
-        tree_.rotateRight(parentId);
+        rotateRight(parentId);
     }
 }
 
@@ -481,9 +544,9 @@ redBlackTree_t<keyT, Comp>::rotateSibling(NodeId nodeId, NodeId parentId) {
 
     const auto& parent = tree_.getNode(parentId);
     if (nodeId == parent.left()) {
-        tree_.rotateRight(siblingId);
+        rotateRight(siblingId);
     } else {
-        tree_.rotateLeft(siblingId);
+        rotateLeft(siblingId);
     }
 }
 
@@ -512,6 +575,7 @@ redBlackTree_t<keyT, Comp>::deleteNode(NodeId rmNodeId) {
             removeNodeWithTwoChildren(rmNodeId);
     }
 
+    updateAncestorSizes(replacementParentId);
     if (removableNodeOriginalColor == nodeColor_t::BLACK) {
         deleteFixup(replacementId, replacementParentId);
     }
