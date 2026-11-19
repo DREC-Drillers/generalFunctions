@@ -384,7 +384,7 @@ redBlackTree_t<keyT, Comp>::treeMinKeyNode(NodeId nodeId) const {
     return node.left() == nil() ? nodeId : treeMinKeyNode(node.left());
 }
 
-template <typename keyT, typename Comp> //FIXME
+template <typename keyT, typename Comp>
 std::tuple<typename redBlackTree_t<keyT, Comp>::NodeId,
            typename redBlackTree_t<keyT, Comp>::NodeId,
            typename redBlackTree_t<keyT, Comp>::nodeColor_t>
@@ -412,15 +412,13 @@ redBlackTree_t<keyT, Comp>::removeNodeWithTwoChildren(NodeId rmNodeId) {
             removableNodeOriginalColor};
 }
 
-template <typename keyT, typename Comp> //FIXME
+template <typename keyT, typename Comp>
 void
 redBlackTree_t<keyT, Comp>::deleteFixup(NodeId extraBlackNodeId, NodeId parentId) {
     while (extraBlackNodeId != tree_.root() && colorOf(extraBlackNodeId) == nodeColor_t::BLACK) {
         auto& parent = tree_.getNode(parentId);
         NodeId siblingId = sibling(extraBlackNodeId, parentId);
 
-        // A non-root position with a black deficit has a live sibling,
-        // so comparing its ID with parent.left() also works for a missing child.
         if (colorOf(siblingId) == nodeColor_t::RED) {
             tree_.getNode(siblingId).data().setColor(nodeColor_t::BLACK);
             parent.data().setColor(nodeColor_t::RED);
