@@ -12,6 +12,7 @@
 namespace {
 
 using NodeId = general_functions::AVLTree::NodeId;
+constexpr auto NO_NODE = general_functions::BinaryTree<int>::INVALID_NODE;
 
 struct ValidationResult {
     int height;
@@ -20,25 +21,29 @@ struct ValidationResult {
 
 std::optional<ValidationResult> validateNode(
     const general_functions::AVLTree& avl,
-    std::optional<NodeId> id, std::optional<int> lower,
+    NodeId id, NodeId parent, std::optional<int> lower,
     std::optional<int> upper, std::vector<bool>& visited) {
-    if (!id) {
+    if (id == NO_NODE) {
         return ValidationResult{0, 0};
     }
-    if (*id >= avl.size() || visited[*id]) {
+    if (id >= avl.size() || visited[id]) {
         return std::nullopt;
     }
-    visited[*id] = true;
-    const auto& node = avl.tree().value(*id);
+    visited[id] = true;
+    const auto& link = avl.tree().getNode(id);
+    if (link.parent() != parent) {
+        return std::nullopt;
+    }
+    const auto& node = link.data();
     if ((lower && node.key <= *lower) ||
         (upper && node.key >= *upper)) {
         return std::nullopt;
     }
-    const auto left = validateNode(avl, avl.tree().left(*id), lower, node.key, visited);
+    const auto left = validateNode(avl, link.left(), id, lower, node.key, visited);
     if (!left) {
         return std::nullopt;
     }
-    const auto right = validateNode(avl, avl.tree().right(*id), node.key, upper, visited);
+    const auto right = validateNode(avl, link.right(), id, node.key, upper, visited);
     if (!right) {
         return std::nullopt;
     }
@@ -54,7 +59,7 @@ std::optional<ValidationResult> validateNode(
 
 bool validateInvariants(const general_functions::AVLTree& avl) {
     std::vector<bool> visited(avl.size(), false);
-    const auto result = validateNode(avl, avl.tree().root(), std::nullopt,
+    const auto result = validateNode(avl, avl.tree().root(), NO_NODE, std::nullopt,
                                      std::nullopt, visited);
     return result && result->subtreeSize == avl.size();
 }
@@ -65,11 +70,11 @@ TEST(AVLTreeTest, InsertAndDuplicate) {
     general_functions::AVLTree tree;
     EXPECT_TRUE(validateInvariants(tree));
     EXPECT_EQ(tree.size(), 0U);
-    EXPECT_FALSE(tree.tree().root());
+    EXPECT_EQ(tree.tree().root(), NO_NODE);
     EXPECT_TRUE(tree.insert(5));
     EXPECT_FALSE(tree.insert(5));
     EXPECT_EQ(tree.size(), 1U);
-    EXPECT_EQ(tree.tree().value(*tree.tree().root()).key, 5);
+    EXPECT_EQ(tree.tree().getNode(tree.tree().root()).data().key, 5);
     EXPECT_TRUE(validateInvariants(tree));
 }
 
@@ -84,10 +89,10 @@ TEST(AVLTreeTest, BalancesAllFourRotationCases) {
             EXPECT_TRUE(validateInvariants(tree));
         }
         const auto& binary = tree.tree();
-        const auto root = *binary.root();
-        EXPECT_EQ(binary.value(root).key, 2);
-        EXPECT_EQ(binary.value(*binary.left(root)).key, 1);
-        EXPECT_EQ(binary.value(*binary.right(root)).key, 3);
+        const auto& root = binary.getNode(binary.root());
+        EXPECT_EQ(root.data().key, 2);
+        EXPECT_EQ(binary.getNode(root.left()).data().key, 1);
+        EXPECT_EQ(binary.getNode(root.right()).data().key, 3);
     }
 }
 

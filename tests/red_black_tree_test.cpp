@@ -4,12 +4,15 @@
 #include <set>
 #include <algorithm>
 #include <array>
+#include <cstdint>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <tuple>
 #include <unordered_set>
+#include <vector>
 // Inspect topology in tests without exposing nodes in the public API.
 #define private public
 #include "tree/red_black_tree.hpp"
@@ -23,10 +26,19 @@ TEST(RedBlackTree, RandomInsertEraseAndBounds) {
         int key = int(random() % 101) - 50;
         if (random() % 2) { tree.insert(key); reference.insert(key); }
         else { tree.erase(key); reference.erase(key); }
+        std::size_t index = 0;
+        for (int expected : reference) {
+            ASSERT_EQ(tree.select(index), expected);
+            ++index;
+        }
         for (int query = -51; query <= 51; ++query) {
             ASSERT_EQ(tree.find(query), reference.count(query) != 0);
             auto lower = reference.lower_bound(query);
             auto upper = reference.upper_bound(query);
+            ASSERT_EQ(tree.countKeysLessThan(query),
+                      static_cast<std::size_t>(std::distance(reference.begin(), lower)));
+            ASSERT_EQ(tree.countKeysLessThanOrEqual(query),
+                      static_cast<std::size_t>(std::distance(reference.begin(), upper)));
             auto actualLower = tree.lowerBound(query);
             auto actualUpper = tree.upperBound(query);
             ASSERT_EQ(actualLower.has_value(), lower != reference.end());
@@ -41,6 +53,11 @@ TEST(RedBlackTree, BoundResultSurvivesTreeDestruction) {
         red_black_tree::redBlackTree_t<int, std::greater<int>> tree;
         tree.insert(4); tree.insert(8); tree.insert(2);
         EXPECT_EQ(tree.upperBound(8), 4);
+        EXPECT_EQ(tree.countKeysLessThan(4), 1U);
+        EXPECT_EQ(tree.countKeysLessThanOrEqual(4), 2U);
+        EXPECT_EQ(tree.countKeysLessThan(1), 3U);
+        EXPECT_EQ(tree.select(0), 8);
+        EXPECT_EQ(tree.select(2), 2);
         return tree.lowerBound(7);
     }();
     EXPECT_EQ(result, 4);
@@ -49,31 +66,43 @@ TEST(RedBlackTree, BoundResultSurvivesTreeDestruction) {
 namespace {
 template<class Tree>
 void verify(Tree& tree, const std::set<int>& expected) {
-    auto nil = tree.nil();
-    using Color = decltype(nil->color());
-    ASSERT_EQ(nil->color(), Color::BLACK);
-    ASSERT_EQ(nil->left(), nil);
-    ASSERT_EQ(nil->right(), nil);
-    ASSERT_EQ(tree.root_->parent(), nil);
-    ASSERT_EQ(tree.root_->color(), Color::BLACK);
-    std::unordered_set<decltype(nil)> visited;
-    std::vector<int> keys;
-    std::function<int(decltype(nil))> walk = [&](auto node) -> int {
-        if (node == nil) return 1;
-        if (!visited.insert(node).second) { ADD_FAILURE() << "cycle or shared node"; return 0; }
-        if (node->left() != nil) EXPECT_EQ(node->left()->parent(), node);
-        if (node->right() != nil) EXPECT_EQ(node->right()->parent(), node);
-        if (node->color() == Color::RED) {
-            EXPECT_EQ(node->left()->color(), Color::BLACK);
-            EXPECT_EQ(node->right()->color(), Color::BLACK);
-        }
-        int left = walk(node->left());
-        keys.push_back(node->key());
-        int right = walk(node->right());
-        EXPECT_EQ(left, right);
-        return left + (node->color() == Color::BLACK);
+    using NodeId = typename Tree::NodeId;
+    using Color = typename Tree::nodeColor_t;
+    const NodeId nil = tree.nil();
+    const auto& storage = tree.tree_;
+    const NodeId root = storage.root();
+    ASSERT_EQ(storage.size(), expected.size());
+    ASSERT_EQ(root == nil, expected.empty());
+
+    auto colorOf = [&](NodeId id) {
+        return id == nil ? Color::BLACK : storage.getNode(id).data().color();
     };
-    walk(tree.root_);
+    ASSERT_EQ(colorOf(root), Color::BLACK);
+    std::unordered_set<NodeId> visited;
+    std::vector<int> keys;
+    std::function<int(NodeId, NodeId)> walk = [&](NodeId id, NodeId parent) -> int {
+        if (id == nil) {
+            return 1;
+        }
+        if (!visited.insert(id).second) {
+            ADD_FAILURE() << "cycle or shared node";
+            return 0;
+        }
+        const auto& node = storage.getNode(id);
+        EXPECT_EQ(node.parent(), parent);
+        if (node.data().color() == Color::RED) {
+            EXPECT_EQ(colorOf(node.left()), Color::BLACK);
+            EXPECT_EQ(colorOf(node.right()), Color::BLACK);
+        }
+        const auto first = keys.size();
+        int left = walk(node.left(), id);
+        keys.push_back(node.data().key());
+        int right = walk(node.right(), id);
+        EXPECT_EQ(node.data().subtreeSize(), keys.size() - first);
+        EXPECT_EQ(left, right);
+        return left + (node.data().color() == Color::BLACK);
+    };
+    walk(root, nil);
     EXPECT_EQ(keys, std::vector<int>(expected.begin(), expected.end()));
 }
 using Tree = red_black_tree::redBlackTree_t<int, std::less<int>>;
@@ -122,9 +151,12 @@ TEST(RedBlackTree, EmptyDuplicatesAndIntegerLimits) {
     EXPECT_FALSE(tree.find(0));
     EXPECT_FALSE(tree.lowerBound(0));
     EXPECT_FALSE(tree.upperBound(0));
+    EXPECT_EQ(tree.countKeysLessThan(0), 0U);
+    EXPECT_THROW(tree.select(0), std::out_of_range);
     std::set<int> keys{std::numeric_limits<int>::min(), 0, std::numeric_limits<int>::max()};
     for (int key : keys) for (int i=0; i<10; ++i) tree.insert(key);
     verify(tree, keys);
+    EXPECT_THROW(tree.select(tree.size()), std::out_of_range);
     EXPECT_EQ(tree.lowerBound(*keys.begin()), *keys.begin());
     EXPECT_FALSE(tree.upperBound(*keys.rbegin()));
     for (int key : keys) { tree.erase(key); EXPECT_FALSE(tree.find(key)); }
@@ -136,15 +168,20 @@ TEST(RedBlackTree, PrivateTraversalHelpers) {
     EXPECT_EQ(tree.successor(tree.nil()), tree.nil());
     EXPECT_EQ(tree.treeMaxKeyNode(tree.nil()), tree.nil());
     for(int key : {4,2,6,1,3,5,7}) tree.insert(key);
-    auto node = tree.treeMinKeyNode(tree.root_);
-    for(int key=1; key<=7; ++key) { ASSERT_NE(node, tree.nil()); EXPECT_EQ(node->key(),key); node=tree.successor(node); }
-    EXPECT_EQ(node, tree.nil());
-    EXPECT_EQ(tree.treeMaxKeyNode(tree.root_)->key(), 7);
-    EXPECT_EQ(tree.root_->grandparent(),tree.nil());
-    EXPECT_EQ(tree.root_->uncle(),tree.nil());
-    EXPECT_EQ(tree.root_->sibling(),tree.nil());
-    tree.rotateParent(tree.root_);
-    tree.rotateSibling(tree.root_);
+    const auto root = tree.tree_.root();
+    auto nodeId = tree.treeMinKeyNode(root);
+    for (int key = 1; key <= 7; ++key) {
+        ASSERT_NE(nodeId, tree.nil());
+        EXPECT_EQ(tree.tree_.getNode(nodeId).data().key(), key);
+        nodeId = tree.successor(nodeId);
+    }
+    EXPECT_EQ(nodeId, tree.nil());
+    EXPECT_EQ(tree.tree_.getNode(tree.treeMaxKeyNode(root)).data().key(), 7);
+    EXPECT_EQ(tree.grandparent(root), tree.nil());
+    EXPECT_EQ(tree.uncle(root), tree.nil());
+    EXPECT_EQ(tree.sibling(root, tree.nil()), tree.nil());
+    tree.rotateParent(root, tree.nil());
+    tree.rotateSibling(root, tree.nil());
     verify(tree, {1,2,3,4,5,6,7});
 }
 
@@ -180,8 +217,16 @@ TEST(RedBlackTree, StatefulComparatorLifetimeAndExceptions) {
         EXPECT_EQ(Key::live,3);
         const auto& constTree=tree;
         EXPECT_TRUE(constTree.find(Key(2)));
-        EXPECT_EQ(constTree.lowerBound(Key(2))->value,2);
-        EXPECT_EQ(constTree.upperBound(Key(2))->value,1);
+        if (const auto lower = constTree.lowerBound(Key(2))) {
+            EXPECT_EQ(lower->value, 2);
+        } else {
+            ADD_FAILURE() << "Expected a lower bound for key 2";
+        }
+        if (const auto upper = constTree.upperBound(Key(2))) {
+            EXPECT_EQ(upper->value, 1);
+        } else {
+            ADD_FAILURE() << "Expected an upper bound for key 2";
+        }
         fail=true;
         EXPECT_THROW(tree.insert(Key(4)),std::runtime_error);
         EXPECT_THROW(tree.erase(Key(2)),std::runtime_error);
@@ -205,5 +250,33 @@ TEST(RedBlackTree, MoveOnlyKeysSupportInsertFindAndErase) {
     red_black_tree::redBlackTree_t<std::unique_ptr<int>, decltype(compare)> tree(compare);
     tree.insert(std::make_unique<int>(2)); tree.insert(std::make_unique<int>(1)); tree.insert(std::make_unique<int>(3));
     auto query=std::make_unique<int>(2);
+    ASSERT_EQ(*tree.select(1), 2);
     EXPECT_TRUE(tree.find(query)); tree.erase(query); EXPECT_FALSE(tree.find(query));
+    EXPECT_EQ(*tree.select(1), 3);
+}
+
+TEST(RedBlackTree, ComparatorEquivalenceAcrossRankQueriesAndErase) {
+    const auto compare = [](const auto& left, const auto& right) {
+        return left.first < right.first;
+    };
+    using Key = std::pair<int, int>;
+    red_black_tree::redBlackTree_t<Key, decltype(compare)> tree(compare);
+    tree.insert({2, 20});
+    tree.insert({1, 10});
+    tree.insert({3, 30});
+    tree.insert({2, 99});
+
+    const Key query{2, 0};
+    EXPECT_EQ(tree.size(), 3U);
+    EXPECT_TRUE(tree.find(query));
+    EXPECT_EQ(tree.countKeysLessThan(query), 1U);
+    EXPECT_EQ(tree.countKeysLessThanOrEqual(query), 2U);
+    EXPECT_EQ(tree.select(1), (Key{2, 20}));
+    EXPECT_THROW(tree.select(std::numeric_limits<std::size_t>::max()), std::out_of_range);
+
+    tree.erase(query);
+    EXPECT_FALSE(tree.find(query));
+    EXPECT_EQ(tree.countKeysLessThan(query), 1U);
+    EXPECT_EQ(tree.countKeysLessThanOrEqual(query), 1U);
+    EXPECT_EQ(tree.select(1), (Key{3, 30}));
 }

@@ -23,9 +23,9 @@ public:
 
     template <typename Visitor>
     void query(const axisAlignedBoundingBox_t& bounds, Visitor&& visitor) const {
-        if (const auto root = tree_.root()) {
+        if (const auto root = tree_.root(); root != Tree::INVALID_NODE) {
             auto&& callback = std::forward<Visitor>(visitor);
-            visitNode(*root, bounds, callback);
+            visitNode(root, bounds, callback);
         }
     }
 
@@ -49,7 +49,8 @@ private:
 
     template <typename Visitor>
     bool visitNode(NodeId id, const axisAlignedBoundingBox_t& bounds, Visitor& visitor) const {
-        const auto& node = tree_.value(id);
+        const auto& treeNode = tree_.getNode(id);
+        const auto& node = treeNode.data();
         if (!node.bounds.overlaps(bounds)) {
             return true;
         }
@@ -64,8 +65,8 @@ private:
             return true;
         }
 
-        return visitNode(tree_.left(id).value(), bounds, visitor) &&
-               visitNode(tree_.right(id).value(), bounds, visitor);
+        return visitNode(treeNode.left(), bounds, visitor) &&
+               visitNode(treeNode.right(), bounds, visitor);
     }
 
     static constexpr std::size_t MAX_LEAF_SIZE = 4;
