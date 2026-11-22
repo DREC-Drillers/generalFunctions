@@ -34,7 +34,7 @@ bool Bvh::empty() const noexcept {
     return bounds_.empty();
 }
 
-const axisAlignedBoundingBox_t& Bvh::objectBounds(std::size_t object) const {
+const axisAlignedBoundingBox_t& Bvh::objectBounds(std::size_t object) const { //FIXME name
     return bounds_.at(object);
 }
 
@@ -107,10 +107,12 @@ void Bvh::build(NodeId node, const std::vector<point_t<3>>& centers) {
     const auto middle = partitionObjects(begin, count, splitAxis, centers);
 
     tree_.getNode(node).data().count = 0;
+    
     const auto left = tree_.allocateNode(makeNode(begin, middle - begin));
     tree_.getNode(node).setLeft(left);
     tree_.getNode(left).setParent(node);
     build(left, centers);
+
     const auto right =
         tree_.allocateNode(makeNode(middle, begin + count - middle));
     tree_.getNode(node).setRight(right);
