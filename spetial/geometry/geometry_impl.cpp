@@ -3,6 +3,7 @@ module;
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 #include <string>
@@ -377,18 +378,23 @@ vector_t polygon_t<Dim>::unitNormal() const requires (Dim == 3) {
 
 template <std::size_t Dim>
     requires (Dim == 2 || Dim == 3)
-segment_t polygon_t<Dim>::maxEdge() const requires (Dim == 3) {
-    const std::vector<double> lengths;
+std::optional<segment_t> polygon_t<Dim>::maxEdge() const requires (Dim == 3) {
+    const std::size_t count = numOfPoints();
+    std::size_t longestEdgeStart = 0;
+    double longestLength = 0.0;
 
-    lengths.reserve(numOfPoints());
-    for (size_t i = 0; i < ; ++i) {
-        lengths.push_back(point(i).distance(point((i + 1) % numOfPoints())););
+    for (std::size_t i = 0; i < count; ++i) {
+        const double length = point(i).distance(point((i + 1) % count));
+        if (length > longestLength) {
+            longestLength = length;
+            longestEdgeStart = i;
+        }
     }
 
-    const std::size_t first =
-        std::max_element(lengths.begin(), lengths.end()) - lengths.begin();
-
-    return segment_t(point(first), point((first + 1) % numOfPoints()));
+    if (longestLength == 0.0) {
+        return std::nullopt;
+    }
+    return segment_t(point(longestEdgeStart), point((longestEdgeStart + 1) % count));
 }
 
 template class polygon_t<2>;
