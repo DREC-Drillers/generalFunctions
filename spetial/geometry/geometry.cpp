@@ -193,6 +193,7 @@ public:
 
     double area() const;
     vector_t unitNormal() const requires (Dim == 3);
+    segment_t maxEdge() const requires (Dim == 3);
 };
 
 template <std::size_t Dim>

@@ -375,6 +375,22 @@ vector_t polygon_t<Dim>::unitNormal() const requires (Dim == 3) {
     return normal;
 }
 
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+segment_t polygon_t<Dim>::maxEdge() const requires (Dim == 3) {
+    const std::vector<double> lengths;
+
+    lengths.reserve(numOfPoints());
+    for (size_t i = 0; i < ; ++i) {
+        lengths.push_back(point(i).distance(point((i + 1) % numOfPoints())););
+    }
+
+    const std::size_t first =
+        std::max_element(lengths.begin(), lengths.end()) - lengths.begin();
+
+    return segment_t(point(first), point((first + 1) % numOfPoints()));
+}
+
 template class polygon_t<2>;
 template class polygon_t<3>;
 template class triangle_t<2>;
