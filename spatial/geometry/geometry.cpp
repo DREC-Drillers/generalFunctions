@@ -3,6 +3,7 @@ module;
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -193,6 +194,7 @@ public:
 
     double area() const;
     vector_t unitNormal() const requires (Dim == 3);
+    std::optional<segment_t> maxEdge() const requires (Dim == 3);
 };
 
 template <std::size_t Dim>

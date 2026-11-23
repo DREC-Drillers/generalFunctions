@@ -211,6 +211,25 @@ TEST(Polygon3D, AllowsDegeneratePolygonsAndTriangles) {
     checkDegenerateGeometry<3>();
 }
 
+TEST(Polygon3D, MaxEdgeIncludesClosingEdge) {
+    const auto first = makePoint<3>({0, 0, 0});
+    const auto last = makePoint<3>({4, 0, 0});
+    const geometry::polygon_t<3> polygon(
+        {first, makePoint<3>({1, 1, 0}), makePoint<3>({3, 1, 0}), last});
+
+    const auto edge = polygon.maxEdge();
+    ASSERT_TRUE(edge.has_value());
+    EXPECT_EQ(edge->a(), last);
+    EXPECT_EQ(edge->b(), first);
+}
+
+TEST(Polygon3D, MaxEdgeReturnsEmptyForCoincidentVertices) {
+    const auto point = makePoint<3>({1, 2, 3});
+    const geometry::polygon_t<3> polygon({point, point, point});
+
+    EXPECT_FALSE(polygon.maxEdge().has_value());
+}
+
 TEST(Triangle3D, PreservesVerticesAreaAndNormal) {
     const auto a = makePoint<3>({0, 0, 0});
     const auto b = makePoint<3>({3, 0, 0});

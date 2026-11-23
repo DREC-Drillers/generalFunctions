@@ -6,7 +6,7 @@
 
 #include <gtest/gtest.h>
 
-#include "spetial/bvh.hpp"
+#include "spatial/bvh.hpp"
 
 namespace {
 

@@ -3,6 +3,7 @@ module;
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 #include <string>
@@ -373,6 +374,27 @@ vector_t polygon_t<Dim>::unitNormal() const requires (Dim == 3) {
         throw std::invalid_argument("A degenerate polygon has no unique plane normal");
     }
     return normal;
+}
+
+template <std::size_t Dim>
+    requires (Dim == 2 || Dim == 3)
+std::optional<segment_t> polygon_t<Dim>::maxEdge() const requires (Dim == 3) {
+    const std::size_t count = numOfPoints();
+    std::size_t longestEdgeStart = 0;
+    double longestLength = 0.0;
+
+    for (std::size_t i = 0; i < count; ++i) {
+        const double length = point(i).distance(point((i + 1) % count));
+        if (length > longestLength) {
+            longestLength = length;
+            longestEdgeStart = i;
+        }
+    }
+
+    if (longestLength == 0.0) {
+        return std::nullopt;
+    }
+    return segment_t(point(longestEdgeStart), point((longestEdgeStart + 1) % count));
 }
 
 template class polygon_t<2>;
