@@ -70,8 +70,8 @@ if(GENERAL_FUNCTIONS_BUILD_GEOMETRY)
     add_general_functions_component(geometry 20)
     target_sources(general_functions_geometry
         # Install/export the interface source so consumers can rebuild its BMI.
-        PUBLIC FILE_SET CXX_MODULES FILES spetial/geometry/geometry.cpp
-        PRIVATE spetial/geometry/geometry_impl.cpp)
+        PUBLIC FILE_SET CXX_MODULES FILES spatial/geometry/geometry.cpp
+        PRIVATE spatial/geometry/geometry_impl.cpp)
     install(TARGETS general_functions_geometry EXPORT GeneralFunctionsGeometryTargets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         FILE_SET CXX_MODULES DESTINATION ${CMAKE_INSTALL_DATADIR}/generalFunctions/modules)
@@ -104,11 +104,11 @@ if(GENERAL_FUNCTIONS_BUILD_BVH)
         message(FATAL_ERROR "BVH requires GENERAL_FUNCTIONS_BUILD_GEOMETRY and GENERAL_FUNCTIONS_BUILD_TREE")
     endif()
     add_general_functions_component(bvh 20)
-    target_sources(general_functions_bvh PRIVATE spetial/bvh.cpp)
+    target_sources(general_functions_bvh PRIVATE spatial/bvh.cpp)
     target_link_libraries(general_functions_bvh PUBLIC GeneralFunctions::geometry GeneralFunctions::tree)
     install(TARGETS general_functions_bvh EXPORT GeneralFunctionsBvhTargets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-    install(FILES spetial/bvh.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/spetial)
+    install(FILES spatial/bvh.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/spatial)
     install(EXPORT GeneralFunctionsBvhTargets
         FILE GeneralFunctions-bvh-targets.cmake NAMESPACE GeneralFunctions::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/GeneralFunctions)
