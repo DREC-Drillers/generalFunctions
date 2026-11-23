@@ -23,7 +23,7 @@ Bvh::Bvh(std::vector<axisAlignedBoundingBox_t> bounds) : bounds_(std::move(bound
     }
 
     const auto root = tree_.addRoot(makeNode(0, bounds_.size()));
-    build(root, centers);
+    build(root, 0, bounds_.size(), centers);
 }
 
 std::size_t Bvh::size() const noexcept {
@@ -34,16 +34,20 @@ bool Bvh::empty() const noexcept {
     return bounds_.empty();
 }
 
-const axisAlignedBoundingBox_t& Bvh::objectBounds(std::size_t object) const { //FIXME name
+const axisAlignedBoundingBox_t& Bvh::objectBounds(std::size_t object) const {
     return bounds_.at(object);
 }
 
 Bvh::NodeData Bvh::makeNode(std::size_t begin, std::size_t count) const {
+    if (count <= MAX_LEAF_SIZE) {
+        return ObjectRange{begin, count};
+    }
+
     axisAlignedBoundingBox_t bounds = bounds_.at(objectIndices_.at(begin));
     for (std::size_t offset = 1; offset < count; ++offset) {
         bounds.expand(bounds_.at(objectIndices_.at(begin + offset)));
     }
-    return {bounds, begin, count};
+    return bounds;
 }
 
 std::size_t
@@ -95,9 +99,8 @@ std::size_t Bvh::partitionObjects(std::size_t begin, std::size_t count,
     return middle;
 }
 
-void Bvh::build(NodeId node, const std::vector<point_t<3>>& centers) {
-    const auto begin = tree_.getNode(node).data().begin;
-    const auto count = tree_.getNode(node).data().count;
+void Bvh::build(NodeId node, std::size_t begin, std::size_t count,
+                const std::vector<point_t<3>>& centers) {
     if (count <= MAX_LEAF_SIZE) {
         return;
     }
@@ -106,18 +109,18 @@ void Bvh::build(NodeId node, const std::vector<point_t<3>>& centers) {
 
     const auto middle = partitionObjects(begin, count, splitAxis, centers);
 
-    tree_.getNode(node).data().count = 0;
-    
-    const auto left = tree_.allocateNode(makeNode(begin, middle - begin));
+    const auto leftCount = middle - begin;
+    const auto rightCount = count - leftCount;
+
+    const auto left = tree_.allocateNode(makeNode(begin, leftCount));
     tree_.getNode(node).setLeft(left);
     tree_.getNode(left).setParent(node);
-    build(left, centers);
+    build(left, begin, leftCount, centers);
 
-    const auto right =
-        tree_.allocateNode(makeNode(middle, begin + count - middle));
+    const auto right = tree_.allocateNode(makeNode(middle, rightCount));
     tree_.getNode(node).setRight(right);
     tree_.getNode(right).setParent(node);
-    build(right, centers);
+    build(right, middle, rightCount, centers);
 }
 
 } // namespace general_functions

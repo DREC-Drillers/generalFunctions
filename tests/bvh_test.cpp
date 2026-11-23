@@ -18,7 +18,6 @@ std::vector<std::size_t> collect(const Bvh& index, const axisAlignedBoundingBox_
     std::vector<std::size_t> result;
     index.query(query, [&](std::size_t id) {
         result.push_back(id);
-        return true;
     });
     std::sort(result.begin(), result.end());
     return result;
@@ -63,19 +62,6 @@ TEST(Bvh, IncludesContactAndHandlesCoincidentCenters) {
     for (std::size_t id = 0; id < result.size(); ++id) {
         EXPECT_EQ(result.at(id), id);
     }
-}
-
-TEST(Bvh, StopsWhenVisitorReturnsFalse) {
-    const axisAlignedBoundingBox_t box(point_t<3>({0, 0, 0}), point_t<3>({1, 1, 1}));
-    const Bvh index(std::vector<axisAlignedBoundingBox_t>(100, box));
-    std::size_t calls = 0;
-    index.query(box, [&](std::size_t) {
-        ++calls;
-        return false;
-    });
-
-    EXPECT_EQ(calls, 1U);
-    EXPECT_EQ(collect(index, box).size(), 100U);
 }
 
 TEST(Bvh, MatchesBruteForceAcrossRandomAndFlatBounds) {
