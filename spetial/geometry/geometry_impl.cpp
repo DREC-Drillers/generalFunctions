@@ -7,6 +7,7 @@ module;
 #include <vector>
 #include <string>
 #include <utility>
+#include <numeric>
 
 module geometry;
 
@@ -417,8 +418,7 @@ point_t<3> axisAlignedBoundingBox_t::center() const noexcept {
     for (std::size_t axis = 0; axis < 3; ++axis) {
         const double lower = min_[axis];
         const double upper = max_[axis];
-        result[axis] = lower <= 0 && upper >= 0 ? (lower + upper) / 2
-                                               : lower + (upper - lower) / 2;
+        result[axis] = std::midpoint(lower, upper);
     }
     return point_t<3>(result);
 }
