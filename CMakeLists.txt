@@ -75,8 +75,6 @@ if(GENERAL_FUNCTIONS_BUILD_GEOMETRY)
     install(TARGETS general_functions_geometry EXPORT GeneralFunctionsGeometryTargets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         FILE_SET CXX_MODULES DESTINATION ${CMAKE_INSTALL_DATADIR}/generalFunctions/modules)
-    install(FILES spatial/geometry/geomConst.hpp
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/generalFunctions/spatial/geometry)
     install(EXPORT GeneralFunctionsGeometryTargets
         FILE GeneralFunctions-geometry-targets.cmake
         NAMESPACE GeneralFunctions:: CXX_MODULES_DIRECTORY modules
