@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <iostream>
 #include <cstddef>
+#include <cstdint>
 #include <fstream>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -22,32 +24,32 @@ void fileError(const std::string msg, const std::filesystem::path& path)
 
 std::string readFile(const std::filesystem::path& path)
 {
-    std::ifstream file(path);
-
-    if (!file) 
-    {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
         fileError("Cannot open file for reading", path);
     }
 
+    file.seekg(0, std::ios::end);
+    const auto size = static_cast<std::streamoff>(file.tellg());
     std::string buffer;
-    std::string line;
-
-    while(std::getline(file, line))
-    {
-        buffer += line + "\n";
+    if (size < 0 ||
+        static_cast<std::uintmax_t>(size) > buffer.max_size() ||
+        size > std::numeric_limits<std::streamsize>::max()) {
+        fileError("Cannot determine readable file size", path);
     }
 
-    if (file.bad() || !file.eof()) 
-    {
+    file.seekg(0, std::ios::beg);
+    buffer.resize(static_cast<std::size_t>(size));
+    if (!file.read(buffer.data(), static_cast<std::streamsize>(size))) {
         fileError("Cannot read file", path);
     }
 
+    if (!buffer.empty() && buffer.back() != '\n') {
+        buffer.push_back('\n');
+    }
     return buffer;
 }
 
-
-
-//xz che tam dalshe proishodit
 namespace {
 
 constexpr std::size_t fileBufferSize = 64 * 1024;
