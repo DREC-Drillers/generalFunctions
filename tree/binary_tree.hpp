@@ -45,6 +45,11 @@ public:
 
     void swap(BinaryTree& other) noexcept;
 
+    // Construct an in-order iterator at a node of this tree (INVALID_NODE denotes end).
+    const_iterator iteratorAt(NodeId node) const {
+        return const_iterator(this, node, TraversalOrder::InOrder);
+    }
+
     iterator begin() { return traverse(TraversalOrder::InOrder).begin(); }
     iterator end() { return traverse(TraversalOrder::InOrder).end(); }
     const_iterator begin() const { return traverse(TraversalOrder::InOrder).begin(); }
@@ -64,6 +69,12 @@ public:
 
     bool empty() const noexcept { return size() == 0; }
     std::size_t size() const noexcept { return nodes_.size() - freeNodes_.size(); }
+
+    void clear() noexcept {
+        nodes_.clear();
+        freeNodes_.clear();
+        rootId_ = INVALID_NODE;
+    }
 
     void reserve(std::size_t count);
 
@@ -97,6 +108,7 @@ private:
     Iterator(Tree* tree, NodeId node, TraversalOrder order)
         : tree_(tree), node_(node), order_(order) {}
 
+    friend class BinaryTree;
     friend class Traversal<IsConst>;
     template <bool>
     friend class Iterator;

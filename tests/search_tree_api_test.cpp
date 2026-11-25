@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
@@ -10,7 +11,7 @@
 #include "tree/avlTree.hpp"
 
 namespace {
-using Trees = ::testing::Types<general_functions::AVLTree>;
+using Trees = ::testing::Types<general_functions::AVLTree<int>>;
 template <typename Tree>
 class SearchTreeAPITest : public ::testing::Test {};
 TYPED_TEST_SUITE(SearchTreeAPITest, Trees, );
@@ -24,7 +25,7 @@ std::vector<int> populate(Tree& tree) {
         expected.push_back(key);
     }
     std::sort(expected.begin(), expected.end());
-    if constexpr (std::is_same_v<Tree, general_functions::AVLTree>) {
+    if constexpr (std::is_same_v<Tree, general_functions::AVLTree<int>>) {
         expected.erase(std::unique(expected.begin(), expected.end()),
                        expected.end());
     }
@@ -33,8 +34,8 @@ std::vector<int> populate(Tree& tree) {
 
 TYPED_TEST(SearchTreeAPITest, EmptyTreeAndInvalidPositions) {
     TypeParam tree;
-    EXPECT_EQ(tree.lower_bound(0), 0U);
-    EXPECT_EQ(tree.upper_bound(0), 0U);
+    EXPECT_EQ(tree.lower_bound(0), tree.end());
+    EXPECT_EQ(tree.upper_bound(0), tree.end());
     EXPECT_THROW(tree.select(0), std::out_of_range);
 }
 
@@ -58,14 +59,17 @@ TYPED_TEST(SearchTreeAPITest, BoundsMatchStandardAlgorithms) {
         const auto upper = std::upper_bound(expected.begin(), expected.end(), key);
         const auto first = tree.lower_bound(key);
         const auto last = tree.upper_bound(key);
-        EXPECT_EQ(first, static_cast<std::size_t>(lower - expected.begin()));
-        EXPECT_EQ(last, static_cast<std::size_t>(upper - expected.begin()));
-        EXPECT_EQ(last - first, static_cast<std::size_t>(upper - lower));
-        if (first < tree.size()) {
-            EXPECT_EQ(tree.select(first), *lower);
+        EXPECT_EQ(first, std::next(tree.begin(), lower - expected.begin()));
+        EXPECT_EQ(last, std::next(tree.begin(), upper - expected.begin()));
+        EXPECT_EQ(tree.rank(key),
+                  static_cast<std::size_t>(lower - expected.begin()));
+        if (lower != expected.end()) {
+            ASSERT_NE(first, tree.end());
+            EXPECT_EQ(*first, *lower);
         }
-        if (last < tree.size()) {
-            EXPECT_EQ(tree.select(last), *upper);
+        if (upper != expected.end()) {
+            ASSERT_NE(last, tree.end());
+            EXPECT_EQ(*last, *upper);
         }
     }
 }
@@ -77,10 +81,12 @@ TYPED_TEST(SearchTreeAPITest, ExtremeKeys) {
     for (int key : {0, MIN_KEY, MAX_KEY}) {
         tree.insert(key);
     }
-    EXPECT_EQ(tree.lower_bound(MIN_KEY), 0U);
-    EXPECT_EQ(tree.upper_bound(MIN_KEY), 1U);
-    EXPECT_EQ(tree.lower_bound(MAX_KEY), 2U);
-    EXPECT_EQ(tree.upper_bound(MAX_KEY), tree.size());
+    const auto& view = tree;
+    EXPECT_EQ(view.lower_bound(MIN_KEY), view.begin());
+    EXPECT_EQ(view.upper_bound(MIN_KEY), std::next(view.begin()));
+    EXPECT_EQ(view.lower_bound(MAX_KEY), std::prev(view.end()));
+    EXPECT_EQ(view.upper_bound(MAX_KEY), view.end());
+    static_assert(std::is_same_v<decltype(*view.lower_bound(0)), const int&>);
 }
 
 } // namespace
