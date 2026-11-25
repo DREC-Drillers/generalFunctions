@@ -70,6 +70,12 @@ public:
     bool empty() const noexcept { return size() == 0; }
     std::size_t size() const noexcept { return nodes_.size() - freeNodes_.size(); }
 
+    void clear() noexcept {
+        nodes_.clear();
+        freeNodes_.clear();
+        rootId_ = INVALID_NODE;
+    }
+
     void reserve(std::size_t count);
 
     NodeId root() const noexcept { return rootId_; }

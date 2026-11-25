@@ -120,6 +120,8 @@ public:
 
     std::size_t size() const noexcept { return tree_.size(); }
 
+    void clear() noexcept { tree_.clear(); }
+
     const_iterator begin() const { return const_iterator(tree_.begin()); }
     const_iterator end() const { return const_iterator(tree_.end()); }
 
