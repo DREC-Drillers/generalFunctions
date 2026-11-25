@@ -19,38 +19,6 @@ bool isIdent(std::string_view text) {
     return true;
 }
 
-bool isInteger(std::string_view text, bool allowSign) {
-    std::size_t pos = 0;
-
-    if (allowSign && !text.empty() && (text.front() == '+' || text.front() == '-')) ++pos;
-    if (pos == text.size()) return false;
-    for (; pos < text.size(); ++pos) {
-        if (!isDigit(text[pos])) return false;
-    }
-    return true;
-}
-
-bool isDouble(std::string_view text) {
-    std::size_t pos = 0;
-    if (pos < text.size() && (text[pos] == '+' || text[pos] == '-')) ++pos;
-
-    bool hasDigits = false;
-    while (pos < text.size() && isDigit(text[pos])) {
-        hasDigits = true;
-        ++pos;
-    }
-    if (pos < text.size() && text[pos] == '.') {
-        ++pos;
-        while (pos < text.size() && isDigit(text[pos])) {
-            hasDigits = true;
-            ++pos;
-        }
-    }
-    if (!hasDigits) return false;
-
-    return pos == text.size();
-}
-
 } // namespace
 
 Lexer::Lexer(std::string srcBuf, std::filesystem::path fileName)
@@ -80,38 +48,43 @@ void Lexer::skipSpaces() {
     while (!atEnd(pos_) && std::isspace(getSym(pos_))) advanceTo(pos_ + 1);
 }
 
-Token Lexer::readInt(std::string_view text) {
-    std::string_view digits = text;
-
-    if (digits.front() == '+') digits.remove_prefix(1);
+std::optional<Token> Lexer::readInt(std::string_view text) {
+    auto digits = text;
+    if (!digits.empty() && digits.front() == '+') {
+        digits.remove_prefix(1);
+        if (digits.empty() || !isDigit(digits.front())) return std::nullopt;
+    }
+    if (digits.empty()) return std::nullopt;
 
     std::int64_t value = 0;
     const char* const end = digits.data() + digits.size();
     const auto result = std::from_chars(digits.data(), end, value);
 
-    if (result.ec == std::errc{} && result.ptr == end) return makeIntToken(value);
-
-    if (result.ec == std::errc::result_out_of_range) {
-        return readDouble(text);
-    }
-
-    return makeErrorToken("It is not INT");
+    if (result.ptr != end) return std::nullopt;
+    if (result.ec == std::errc{}) return makeIntToken(value);
+    return std::nullopt;
 }
 
-Token Lexer::readDouble(std::string_view text) {
-    if (text.front() == '+') text.remove_prefix(1);
+std::optional<Token> Lexer::readDouble(std::string_view text) {
+    if (text.empty()) return std::nullopt;
+
+    auto magnitude = text;
+    if (text.front() == '+' || text.front() == '-') magnitude.remove_prefix(1);
+    if (magnitude.empty() ||
+        (!isDigit(magnitude.front()) && magnitude.front() != '.')) {
+        return std::nullopt;
+    }
+    if (text.front() == '+') text = magnitude;
 
     double value = 0.0;
     const char* const end = text.data() + text.size();
-    const auto result = std::from_chars(text.data(), end, value, std::chars_format::general);
+    const auto result = std::from_chars(text.data(), end, value, std::chars_format::fixed);
 
+    if (result.ptr != end) return std::nullopt;
     if (result.ec == std::errc::result_out_of_range || !std::isfinite(value)) {
         return makeErrorToken("DOUBLE is out of range");
     }
-    
-    if (result.ec != std::errc{} || result.ptr != end) {
-        return makeErrorToken("It is not DOUBLE");
-    }
+    if (result.ec != std::errc{}) return std::nullopt;
     return makeDoubleToken(value);
 }
 
@@ -123,10 +96,10 @@ Token Lexer::readToken() {
     const std::string_view text = std::string_view(buf_).substr(pos_, end - pos_);
 
     Token token = {};
-    if (isInteger(text, true)) {
-        token = readInt(text);
-    } else if (isDouble(text)) {
-        token = readDouble(text);
+    if (auto integer = readInt(text)) {
+        token = std::move(*integer);
+    } else if (auto decimal = readDouble(text)) {
+        token = std::move(*decimal);
     } else if (isIdent(text)) {
         token = makeIdentToken(std::string(text));
     } else {

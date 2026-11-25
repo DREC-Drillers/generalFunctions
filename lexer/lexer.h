@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -25,8 +26,8 @@ private:
     std::size_t curCol_ = 1;
 
     Token readToken();
-    Token readInt(std::string_view text);
-    Token readDouble(std::string_view text);
+    std::optional<Token> readInt(std::string_view text);
+    std::optional<Token> readDouble(std::string_view text);
 
     bool atEnd(std::size_t pos) const;
     unsigned char getSym(std::size_t pos) const;
