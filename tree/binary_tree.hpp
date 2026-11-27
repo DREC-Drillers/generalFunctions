@@ -491,6 +491,18 @@ void BinaryTree<T>::transplant(NodeId replaceableNodeId, NodeId newNodeId) {
     auto& replaceableNode = getNode(replaceableNodeId);
     auto* newNode = newNodeId == INVALID_NODE ? nullptr : &getNode(newNodeId);
 
+    if (newNode) {
+        const NodeId previousParentId = newNode->parent();
+        const bool detached = previousParentId == INVALID_NODE && newNodeId != rootId_;
+        const bool directChild = previousParentId == replaceableNodeId &&
+                                 (replaceableNode.left() == newNodeId ||
+                                  replaceableNode.right() == newNodeId);
+        if (!detached && !directChild) {
+            throw std::invalid_argument(
+                "BinaryTree: replacement must be detached or a direct child");
+        }
+    }
+
     const NodeId parentId = replaceableNode.parent();
 
     if (replaceableNodeId == rootId_) {

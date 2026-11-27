@@ -24,271 +24,7 @@ class MultiwayTree {
 public:
     using NodeId = std::uint32_t;
 
-    class TopologyEditor {
-    public:
-        explicit TopologyEditor(MultiwayTree& tree)
-            : tree_(tree), initialTopologyVersion_(tree.topologyVersion_),
-              initialNodeCount_(tree.nodes_.size()), rootId_(tree.rootId_) {}
-
-        TopologyEditor(const TopologyEditor&) = delete;
-        TopologyEditor& operator=(const TopologyEditor&) = delete;
-        TopologyEditor(TopologyEditor&&) = delete;
-        TopologyEditor& operator=(TopologyEditor&&) = delete;
-
-        NodeId addRoot(T value) {
-            return executeOperation([&] {
-                if (rootId_ != INVALID_NODE) {
-                    throw std::logic_error("MultiwayTree: root already exists");
-                }
-
-                rootId_ = stageNode(std::move(value), INVALID_NODE);
-                return rootId_;
-            });
-        }
-
-        NodeId addChild(NodeId parentId, std::size_t childIndex, T value) {
-            return executeOperation([&] {
-                auto updatedChildIds = getChildIds(parentId);
-
-                if (childIndex > updatedChildIds.size()) {
-                    throw std::out_of_range(
-                        "MultiwayTree: child index out of range");
-                }
-
-                const NodeId nodeId = stageNode(std::move(value), parentId);
-                updatedChildIds.insert(updatedChildIds.begin() + childIndex, nodeId);
-                stageChildIds(parentId, std::move(updatedChildIds));
-
-                return nodeId;
-            });
-        }
-
-        NodeId insertParent(NodeId nodeId, T value) {
-            return executeOperation([&] {
-                const NodeId oldParentId = getParentId(nodeId);
-                const NodeId newParentId = stageNode(std::move(value), oldParentId);
-                pendingNodes_.back().childIds.push_back(nodeId);
-
-                if (oldParentId == INVALID_NODE) {
-                    rootId_ = newParentId;
-                } else {
-                    auto updatedParentChildIds = getChildIds(oldParentId);
-                    const auto position = std::find(updatedParentChildIds.begin(),
-                                                    updatedParentChildIds.end(),
-                                                    nodeId);
-                    *position = newParentId;
-                    stageChildIds(oldParentId, std::move(updatedParentChildIds));
-                }
-
-                stageParentId(nodeId, newParentId);
-                return newParentId;
-            });
-        }
-
-        void moveChildren(NodeId sourceParentId, std::size_t firstChild,
-                          std::size_t count, NodeId destinationParentId,
-                          std::size_t destinationIndex) {
-            executeOperation([&] {
-                auto sourceChildIds = getChildIds(sourceParentId);
-                const auto& destinationChildIds = getChildIds(destinationParentId);
-
-                if (firstChild > sourceChildIds.size() ||
-                    count > sourceChildIds.size() - firstChild) {
-                    throw std::out_of_range(
-                        "MultiwayTree: child range out of range");
-                }
-
-                const auto destinationSize = sourceParentId == destinationParentId
-                                                 ? sourceChildIds.size() - count
-                                                 : destinationChildIds.size();
-
-                if (destinationIndex > destinationSize) {
-                    throw std::out_of_range(
-                        "MultiwayTree: destination index out of range");
-                }
-
-                if (count == 0) {
-                    return;
-                }
-
-                const auto first = sourceChildIds.begin() + firstChild;
-                std::vector<NodeId> movedChildIds(first, first + count);
-
-                if (sourceParentId != destinationParentId) {
-                    ensureMoveDoesNotCreateCycle(destinationParentId, movedChildIds);
-                }
-
-                sourceChildIds.erase(first, first + count);
-
-                if (sourceParentId == destinationParentId) {
-                    sourceChildIds.insert(sourceChildIds.begin() + destinationIndex,
-                                          movedChildIds.begin(),
-                                          movedChildIds.end());
-                    stageChildIds(sourceParentId, std::move(sourceChildIds));
-                    return;
-                }
-
-                auto updatedDestinationChildIds = destinationChildIds;
-                updatedDestinationChildIds.insert(
-                    updatedDestinationChildIds.begin() + destinationIndex,
-                    movedChildIds.begin(),
-                    movedChildIds.end());
-
-                for (NodeId nodeId : movedChildIds) {
-                    stageParentId(nodeId, destinationParentId);
-                }
-
-                stageChildIds(sourceParentId, std::move(sourceChildIds));
-                stageChildIds(destinationParentId,
-                              std::move(updatedDestinationChildIds));
-            });
-        }
-
-        void commitChanges() {
-            executeOperation([&] {
-                const auto requiredSize = initialNodeCount_ + pendingNodes_.size();
-                tree_.ensureCapacity(requiredSize);
-
-                try {
-                    for (auto& pendingNode : pendingNodes_) {
-                        tree_.nodes_.push_back(std::move_if_noexcept(pendingNode));
-                    }
-                } catch (...) {
-                    while (tree_.nodes_.size() > initialNodeCount_) {
-                        tree_.nodes_.pop_back();
-                    }
-
-                    throw;
-                }
-
-                for (auto& change : pendingChildIds_) {
-                    tree_.nodes_[change.first].childIds.swap(change.second);
-                }
-
-                for (const auto& change : pendingParentIds_) {
-                    tree_.nodes_[change.first].parentId = change.second;
-                }
-
-                tree_.rootId_ = rootId_;
-                ++tree_.topologyVersion_;
-                closed_ = true;
-            });
-        }
-
-    private:
-        template <typename Operation>
-        auto executeOperation(Operation&& operation) {
-            ensureEditorIsActive();
-
-            try {
-                return operation();
-            } catch (...) {
-                closed_ = true;
-                throw;
-            }
-        }
-
-        void ensureEditorIsActive() const {
-            if (closed_) {
-                throw std::logic_error("MultiwayTree: topology edit is closed");
-            }
-
-            if (tree_.topologyVersion_ != initialTopologyVersion_) {
-                throw std::logic_error(
-                    "MultiwayTree: tree changed during topology edit");
-            }
-        }
-
-        void validateNodeId(NodeId nodeId) const {
-            if (nodeId >= initialNodeCount_ + pendingNodes_.size()) {
-                throw std::out_of_range("MultiwayTree: node ID out of range");
-            }
-        }
-
-        const std::vector<NodeId>& getChildIds(NodeId nodeId) const {
-            validateNodeId(nodeId);
-
-            if (nodeId >= initialNodeCount_) {
-                return pendingNodes_[nodeId - initialNodeCount_].childIds;
-            }
-
-            const auto change = pendingChildIds_.find(nodeId);
-
-            if (change != pendingChildIds_.end()) {
-                return change->second;
-            }
-
-            return tree_.nodes_[nodeId].childIds;
-        }
-
-        NodeId getParentId(NodeId nodeId) const {
-            validateNodeId(nodeId);
-
-            if (nodeId >= initialNodeCount_) {
-                return pendingNodes_[nodeId - initialNodeCount_].parentId;
-            }
-
-            const auto change = pendingParentIds_.find(nodeId);
-
-            if (change != pendingParentIds_.end()) {
-                return change->second;
-            }
-
-            return tree_.nodes_[nodeId].parentId;
-        }
-
-        NodeId stageNode(T&& value, NodeId parentId) {
-            const auto index = initialNodeCount_ + pendingNodes_.size();
-
-            if (index >= INVALID_NODE) {
-                throw std::length_error("MultiwayTree: too many nodes");
-            }
-
-            pendingNodes_.emplace_back(std::move(value), parentId);
-            return static_cast<NodeId>(index);
-        }
-
-        void stageChildIds(NodeId nodeId, std::vector<NodeId> childIds) {
-            if (nodeId >= initialNodeCount_) {
-                pendingNodes_[nodeId - initialNodeCount_].childIds =
-                    std::move(childIds);
-            } else {
-                pendingChildIds_.insert_or_assign(nodeId, std::move(childIds));
-            }
-        }
-
-        void stageParentId(NodeId nodeId, NodeId parentId) {
-            if (nodeId >= initialNodeCount_) {
-                pendingNodes_[nodeId - initialNodeCount_].parentId = parentId;
-            } else {
-                pendingParentIds_.insert_or_assign(nodeId, parentId);
-            }
-        }
-
-        void ensureMoveDoesNotCreateCycle(NodeId destinationParentId,
-                                          const std::vector<NodeId>& moved) const {
-            auto ancestorId = destinationParentId;
-
-            while (ancestorId != INVALID_NODE) {
-                if (std::find(moved.begin(), moved.end(), ancestorId) !=
-                    moved.end()) {
-                    throw std::invalid_argument(
-                        "MultiwayTree: moving children would create a cycle");
-                }
-
-                ancestorId = getParentId(ancestorId);
-            }
-        }
-
-        MultiwayTree& tree_;
-        std::uint64_t initialTopologyVersion_;
-        std::size_t initialNodeCount_;
-        NodeId rootId_;
-        std::vector<Node> pendingNodes_;
-        std::map<NodeId, std::vector<NodeId>> pendingChildIds_;
-        std::map<NodeId, NodeId> pendingParentIds_;
-        bool closed_ = false;
-    };
+    class TopologyEditor;
 
     MultiwayTree() = default;
 
@@ -368,10 +104,13 @@ public:
         return nodes_.at(nodeId).childIds.size();
     }
 
+    // Node storage may grow during reserve or insertion, invalidating references.
+    // Retain the node ID and look up its value again after such operations.
     T& value(NodeId nodeId) { return nodes_.at(nodeId).value; }
     const T& value(NodeId nodeId) const { return nodes_.at(nodeId).value; }
 
-    TopologyEditor editTopology() { return TopologyEditor(*this); }
+    // The tree must outlive the editor.
+    TopologyEditor editTopology() & { return TopologyEditor(*this); }
 
     NodeId addRoot(T value) {
         auto editor = editTopology();
@@ -477,6 +216,273 @@ private:
     std::vector<Node> nodes_;
     NodeId rootId_ = INVALID_NODE;
     std::uint64_t topologyVersion_ = 0;
+};
+
+template <typename T>
+class MultiwayTree<T>::TopologyEditor {
+public:
+    explicit TopologyEditor(MultiwayTree& tree)
+        : tree_(tree), initialTopologyVersion_(tree.topologyVersion_),
+          initialNodeCount_(tree.nodes_.size()), rootId_(tree.rootId_) {}
+
+    TopologyEditor(const TopologyEditor&) = delete;
+    TopologyEditor& operator=(const TopologyEditor&) = delete;
+    TopologyEditor(TopologyEditor&&) = delete;
+    TopologyEditor& operator=(TopologyEditor&&) = delete;
+
+    NodeId addRoot(T value) {
+        return executeOperation([&] {
+            if (rootId_ != INVALID_NODE) {
+                throw std::logic_error("MultiwayTree: root already exists");
+            }
+
+            rootId_ = stageNode(std::move(value), INVALID_NODE);
+            return rootId_;
+        });
+    }
+
+    NodeId addChild(NodeId parentId, std::size_t childIndex, T value) {
+        return executeOperation([&] {
+            auto updatedChildIds = getChildIds(parentId);
+
+            if (childIndex > updatedChildIds.size()) {
+                throw std::out_of_range(
+                    "MultiwayTree: child index out of range");
+            }
+
+            const NodeId nodeId = stageNode(std::move(value), parentId);
+            updatedChildIds.insert(updatedChildIds.begin() + childIndex, nodeId);
+            stageChildIds(parentId, std::move(updatedChildIds));
+
+            return nodeId;
+        });
+    }
+
+    NodeId insertParent(NodeId nodeId, T value) {
+        return executeOperation([&] {
+            const NodeId oldParentId = getParentId(nodeId);
+            const NodeId newParentId = stageNode(std::move(value), oldParentId);
+            pendingNodes_.back().childIds.push_back(nodeId);
+
+            if (oldParentId == INVALID_NODE) {
+                rootId_ = newParentId;
+            } else {
+                auto updatedParentChildIds = getChildIds(oldParentId);
+                const auto position = std::find(updatedParentChildIds.begin(),
+                                                updatedParentChildIds.end(),
+                                                nodeId);
+                *position = newParentId;
+                stageChildIds(oldParentId, std::move(updatedParentChildIds));
+            }
+
+            stageParentId(nodeId, newParentId);
+            return newParentId;
+        });
+    }
+
+    void moveChildren(NodeId sourceParentId, std::size_t firstChild,
+                      std::size_t count, NodeId destinationParentId,
+                      std::size_t destinationIndex) {
+        executeOperation([&] {
+            auto sourceChildIds = getChildIds(sourceParentId);
+            const auto& destinationChildIds = getChildIds(destinationParentId);
+
+            if (firstChild > sourceChildIds.size() ||
+                count > sourceChildIds.size() - firstChild) {
+                throw std::out_of_range(
+                    "MultiwayTree: child range out of range");
+            }
+
+            const auto destinationSize = sourceParentId == destinationParentId
+                                             ? sourceChildIds.size() - count
+                                             : destinationChildIds.size();
+
+            if (destinationIndex > destinationSize) {
+                throw std::out_of_range(
+                    "MultiwayTree: destination index out of range");
+            }
+
+            if (count == 0) {
+                return;
+            }
+
+            const auto first = sourceChildIds.begin() + firstChild;
+            std::vector<NodeId> movedChildIds(first, first + count);
+
+            if (sourceParentId != destinationParentId) {
+                ensureMoveDoesNotCreateCycle(destinationParentId, movedChildIds);
+            }
+
+            sourceChildIds.erase(first, first + count);
+
+            if (sourceParentId == destinationParentId) {
+                sourceChildIds.insert(sourceChildIds.begin() + destinationIndex,
+                                      movedChildIds.begin(),
+                                      movedChildIds.end());
+                stageChildIds(sourceParentId, std::move(sourceChildIds));
+                return;
+            }
+
+            auto updatedDestinationChildIds = destinationChildIds;
+            updatedDestinationChildIds.insert(
+                updatedDestinationChildIds.begin() + destinationIndex,
+                movedChildIds.begin(),
+                movedChildIds.end());
+
+            for (NodeId nodeId : movedChildIds) {
+                stageParentId(nodeId, destinationParentId);
+            }
+
+            stageChildIds(sourceParentId, std::move(sourceChildIds));
+            stageChildIds(destinationParentId,
+                          std::move(updatedDestinationChildIds));
+        });
+    }
+
+    void commitChanges() {
+        executeOperation([&] {
+            const auto requiredSize = initialNodeCount_ + pendingNodes_.size();
+            tree_.ensureCapacity(requiredSize);
+
+            try {
+                for (auto& pendingNode : pendingNodes_) {
+                    tree_.nodes_.push_back(std::move_if_noexcept(pendingNode));
+                }
+            } catch (...) {
+                while (tree_.nodes_.size() > initialNodeCount_) {
+                    tree_.nodes_.pop_back();
+                }
+
+                throw;
+            }
+
+            for (auto& change : pendingChildIds_) {
+                tree_.nodes_[change.first].childIds.swap(change.second);
+            }
+
+            for (const auto& change : pendingParentIds_) {
+                tree_.nodes_[change.first].parentId = change.second;
+            }
+
+            tree_.rootId_ = rootId_;
+            ++tree_.topologyVersion_;
+            closed_ = true;
+        });
+    }
+
+private:
+    template <typename Operation>
+    auto executeOperation(Operation&& operation) {
+        ensureEditorIsActive();
+
+        try {
+            return operation();
+        } catch (...) {
+            closed_ = true;
+            throw;
+        }
+    }
+
+    void ensureEditorIsActive() const {
+        if (closed_) {
+            throw std::logic_error("MultiwayTree: topology edit is closed");
+        }
+
+        if (tree_.topologyVersion_ != initialTopologyVersion_) {
+            throw std::logic_error(
+                "MultiwayTree: tree changed during topology edit");
+        }
+    }
+
+    void validateNodeId(NodeId nodeId) const {
+        if (nodeId >= initialNodeCount_ + pendingNodes_.size()) {
+            throw std::out_of_range("MultiwayTree: node ID out of range");
+        }
+    }
+
+    const std::vector<NodeId>& getChildIds(NodeId nodeId) const {
+        validateNodeId(nodeId);
+
+        if (nodeId >= initialNodeCount_) {
+            return pendingNodes_[nodeId - initialNodeCount_].childIds;
+        }
+
+        const auto change = pendingChildIds_.find(nodeId);
+
+        if (change != pendingChildIds_.end()) {
+            return change->second;
+        }
+
+        return tree_.nodes_[nodeId].childIds;
+    }
+
+    NodeId getParentId(NodeId nodeId) const {
+        validateNodeId(nodeId);
+
+        if (nodeId >= initialNodeCount_) {
+            return pendingNodes_[nodeId - initialNodeCount_].parentId;
+        }
+
+        const auto change = pendingParentIds_.find(nodeId);
+
+        if (change != pendingParentIds_.end()) {
+            return change->second;
+        }
+
+        return tree_.nodes_[nodeId].parentId;
+    }
+
+    NodeId stageNode(T&& value, NodeId parentId) {
+        const auto index = initialNodeCount_ + pendingNodes_.size();
+
+        if (index >= INVALID_NODE) {
+            throw std::length_error("MultiwayTree: too many nodes");
+        }
+
+        pendingNodes_.emplace_back(std::move(value), parentId);
+        return static_cast<NodeId>(index);
+    }
+
+    void stageChildIds(NodeId nodeId, std::vector<NodeId> childIds) {
+        if (nodeId >= initialNodeCount_) {
+            pendingNodes_[nodeId - initialNodeCount_].childIds =
+                std::move(childIds);
+        } else {
+            pendingChildIds_.insert_or_assign(nodeId, std::move(childIds));
+        }
+    }
+
+    void stageParentId(NodeId nodeId, NodeId parentId) {
+        if (nodeId >= initialNodeCount_) {
+            pendingNodes_[nodeId - initialNodeCount_].parentId = parentId;
+        } else {
+            pendingParentIds_.insert_or_assign(nodeId, parentId);
+        }
+    }
+
+    void ensureMoveDoesNotCreateCycle(NodeId destinationParentId,
+                                      const std::vector<NodeId>& moved) const {
+        auto ancestorId = destinationParentId;
+
+        while (ancestorId != INVALID_NODE) {
+            if (std::find(moved.begin(), moved.end(), ancestorId) !=
+                moved.end()) {
+                throw std::invalid_argument(
+                    "MultiwayTree: moving children would create a cycle");
+            }
+
+            ancestorId = getParentId(ancestorId);
+        }
+    }
+
+    MultiwayTree& tree_;
+    std::uint64_t initialTopologyVersion_;
+    std::size_t initialNodeCount_;
+    NodeId rootId_;
+    std::vector<Node> pendingNodes_;
+    std::map<NodeId, std::vector<NodeId>> pendingChildIds_;
+    std::map<NodeId, NodeId> pendingParentIds_;
+    bool closed_ = false;
 };
 
 } // namespace general_functions

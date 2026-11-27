@@ -3,6 +3,7 @@
 #include <memory>
 #include <random>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -13,6 +14,16 @@
 namespace {
 
 using Tree = general_functions::MultiwayTree<int>;
+
+template <typename TreeRef, typename = void>
+constexpr bool canEditTopology = false;
+
+template <typename TreeRef>
+constexpr bool canEditTopology<
+    TreeRef, std::void_t<decltype(std::declval<TreeRef>().editTopology())>> = true;
+
+static_assert(canEditTopology<Tree&>);
+static_assert(!canEditTopology<Tree&&>);
 
 TEST(MultiwayTreeTest, EmptyTreeAndInvalidAccess) {
     Tree tree;

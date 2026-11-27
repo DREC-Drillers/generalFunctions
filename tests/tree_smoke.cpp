@@ -197,6 +197,14 @@ void testRotationsAndTransplant() {
     requireThrows<std::out_of_range>([&] { tree.rotateRight(root); });
     requireThrows<std::logic_error>([&] { tree.releaseNode(middle); });
 
+    requireThrows<std::invalid_argument>([&] { tree.transplant(pivot, root); });
+    requireThrows<std::invalid_argument>([&] { tree.transplant(middle, pivot); });
+    requireThrows<std::invalid_argument>([&] { tree.transplant(root, middle); });
+    require(tree.root() == root && tree.getNode(root).parent() == nil &&
+                tree.getNode(root).right() == pivot && tree.getNode(pivot).parent() == root &&
+                tree.getNode(pivot).left() == middle && tree.getNode(middle).parent() == pivot,
+            "Rejected transplant changed tree links");
+
     const auto replacement = tree.allocateNode(35);
     tree.transplant(middle, replacement);
     require(tree.getNode(pivot).left() == replacement &&
